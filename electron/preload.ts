@@ -49,29 +49,23 @@ const api = {
   moveTask: (taskId: string, columnId: string, order: number): Promise<Task> =>
     ipcRenderer.invoke('task:move', taskId, columnId, order),
 
-  // OMP agent session per task — chat-style, no terminal. One persistent session
-  // per task; each prompt spawns a short-lived omp process that streams NDJSON
-  // events back to the renderer.
-  sendAgentPrompt: (
-    taskId: string,
-    projectPath: string,
-    prompt: string,
-  ): Promise<{ promptId: number; sessionId: string | null }> =>
-    ipcRenderer.invoke('agent:prompt', { taskId, projectPath, prompt }),
-  killAgent: (taskId: string): Promise<void> =>
-    ipcRenderer.invoke('agent:kill', taskId),
-  getAgentStatus: (taskId: string): Promise<AgentStatus> =>
-    ipcRenderer.invoke('agent:status', taskId),
-  resetAgentSession: (taskId: string): Promise<void> =>
-    ipcRenderer.invoke('agent:reset', taskId),
+  // Terminal PTY methods
+  spawnAgentPty: (taskId: string, projectPath: string, cols: number, rows: number): Promise<void> =>
+    ipcRenderer.invoke('agent:pty:spawn', { taskId, projectPath, cols, rows }),
+  sendAgentPtyData: (taskId: string, data: string): Promise<void> =>
+    ipcRenderer.invoke('agent:pty:data', { taskId, data }),
+  resizeAgentPty: (taskId: string, cols: number, rows: number): Promise<void> =>
+    ipcRenderer.invoke('agent:pty:resize', { taskId, cols, rows }),
+  killAgentPty: (taskId: string): Promise<void> =>
+    ipcRenderer.invoke('agent:pty:kill', taskId),
 
-  onAgentOutput: (callback: (data: AgentOutputEvent) => void): void => {
-    const handler = (_event: Electron.IpcRendererEvent, data: AgentOutputEvent): void =>
+  onAgentPtyOutput: (callback: (data: { taskId: string; data: string }) => void): void => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { taskId: string; data: string }): void =>
       callback(data)
-    ipcRenderer.on('agent:output', handler)
+    ipcRenderer.on('agent:pty:output', handler)
   },
-  removeAgentOutputListener: (): void => {
-    ipcRenderer.removeAllListeners('agent:output')
+  removeAgentPtyOutputListener: (): void => {
+    ipcRenderer.removeAllListeners('agent:pty:output')
   },
 
   onAgentStatus: (callback: (data: { taskId: string; status: AgentStatus }) => void): void => {

@@ -13,7 +13,7 @@ import { useProjectStore } from './stores/projectStore'
 
 function App(): React.ReactElement {
   const { init } = useThemeStore()
-  const { panelOpen, activeTaskId, applyEvent, finalizeMessage, setStatus } = useTerminalStore()
+  const { panelOpen, activeTaskId, setStatus } = useTerminalStore()
   const { currentProject, loadProjects, setAgentStatus } = useProjectStore()
 
   useEffect(() => {
@@ -32,25 +32,6 @@ function App(): React.ReactElement {
       window.electronAPI.removeAgentStatusListener()
     }
   }, [setStatus, setAgentStatus])
-
-  // Bridge OMP JSON-mode output events into the terminal store's message thread.
-  useEffect(() => {
-    const handler = (data: { taskId: string; promptId: number; raw?: Record<string, unknown>; type?: string; prompt?: string; message?: string; exitCode?: number | null; signal?: string | null }): void => {
-      if (data.raw) {
-        applyEvent(data.taskId, data.promptId, data.raw)
-      } else if (data.type === 'prompt' && data.prompt) {
-        // The prompt event is a meta-event; user message is appended locally.
-      } else if (data.type === 'closed') {
-        finalizeMessage(data.taskId, data.promptId)
-      } else if (data.type === 'error' && data.message) {
-        finalizeMessage(data.taskId, data.promptId, data.message)
-      }
-    }
-    window.electronAPI.onAgentOutput(handler)
-    return () => {
-      window.electronAPI.removeAgentOutputListener()
-    }
-  }, [applyEvent, finalizeMessage])
 
   return (
     <>

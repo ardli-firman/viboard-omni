@@ -20,12 +20,7 @@ const statusColors: Record<AgentStatus, string> = {
   error: 'bg-red-500/10 text-red-500 border-red-500/20',
 }
 
-const chatIconColor: Record<AgentStatus, string> = {
-  idle: 'text-muted-foreground',
-  running: 'text-blue-500',
-  completed: 'text-green-500',
-  error: 'text-red-500',
-}
+
 
 export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardProps): React.ReactElement {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -46,7 +41,7 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
       className={`group/card cursor-grab rounded-xl border border-border/40 bg-background/80 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-md active:cursor-grabbing ${isDragging ? 'opacity-50 ring-2 ring-primary/50' : ''}`}
       {...attributes}
       {...listeners}
-      onClick={(e) => {
+      onClick={() => {
         // Prevent opening chat if they drag the card but accidentally trigger a click.
         // dnd-kit usually prevents default click, but just to be safe.
         if (!isDragging) {
