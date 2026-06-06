@@ -47,6 +47,10 @@ app.whenReady().then(() => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
+  
+  // Initialize database
+  initDatabase()
+
   registerProjectHandlers()
   registerFileHandlers()
   registerColumnHandlers()
