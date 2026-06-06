@@ -3,12 +3,12 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { existsSync } from 'node:fs'
 import { getDatabase } from '../database/init'
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import * as pty from '@cocktailpeanut/node-pty-prebuilt-multiarch'
 import type { AgentStatus } from '../../src/shared/types'
 
 interface PtyRun {
   taskId: string
-  childProcess: ChildProcessWithoutNullStreams
+  childProcess: pty.IPty
   status: AgentStatus
 }
 
@@ -19,13 +19,11 @@ function resolveOmpBinary(): string {
     const candidates = [
       path.join(os.homedir(), '.bun', 'bin', 'omp.exe'),
       path.join(os.homedir(), '.bun', 'bin', 'omp.cmd'),
-      'omp.exe',
-      'omp.cmd',
     ]
     for (const c of candidates) {
-      if (c.includes(path.sep) && existsSync(c)) return c
+      if (existsSync(c)) return c
     }
-    return 'omp.exe'
+    return 'omp.cmd' // node-pty on Windows usually needs the exact extension
   }
   return 'omp'
 }
@@ -67,7 +65,7 @@ async function killPtyAsync(taskId: string): Promise<void> {
   if (!run) return
   return new Promise<void>((resolve) => {
     const timeout = setTimeout(resolve, 2000)
-    run.childProcess.on('close', () => {
+    run.childProcess.onExit(() => {
       clearTimeout(timeout)
       resolve()
     })
@@ -84,7 +82,7 @@ export function registerTerminalHandlers(): void {
   ipcMain.handle(
     'agent:pty:spawn',
     async (_event: unknown, input: { taskId: string; projectPath: string; cols: number; rows: number }): Promise<void> => {
-      const { taskId, projectPath } = input
+      const { taskId, projectPath, cols = 80, rows = 24 } = input
 
       if (runs.has(taskId)) {
         await killPtyAsync(taskId)
@@ -94,15 +92,16 @@ export function registerTerminalHandlers(): void {
       const cwd = projectPath && existsSync(projectPath) ? projectPath : process.cwd()
 
       try {
-        // Fallback to child_process since node-pty compilation fails
-        const childProcess = spawn(ompPath, [], {
+        const childProcess = pty.spawn(process.platform === 'win32' ? 'cmd.exe' : ompPath, process.platform === 'win32' ? ['/c', ompPath] : [], {
+          name: 'xterm-color',
+          cols,
+          rows,
           cwd,
-          windowsHide: true,
           env: {
             ...process.env,
             OMP_TASK_ID: taskId,
             OMP_PROJECT_PATH: cwd,
-            // Force basic interaction
+            OMP_SESSION_PER_TASK: '1',
             FORCE_COLOR: '1',
           } as Record<string, string>,
         })
@@ -116,22 +115,12 @@ export function registerTerminalHandlers(): void {
 
         sendAgentStatus(taskId, 'running')
 
-        childProcess.stdout.on('data', (chunk) => {
-          sendPtyOutput(taskId, chunk.toString('utf8'))
+        childProcess.onData((data) => {
+          sendPtyOutput(taskId, data)
         })
 
-        childProcess.stderr.on('data', (chunk) => {
-          sendPtyOutput(taskId, chunk.toString('utf8'))
-        })
-
-        childProcess.on('error', (err) => {
-          const message = err instanceof Error ? err.message : String(err)
-          sendPtyOutput(taskId, `\r\n\x1b[31m[failed to spawn omp]\x1b[0m ${message}\r\n`)
-          sendAgentStatus(taskId, 'error')
-        })
-
-        childProcess.on('close', (code) => {
-          const finalStatus: AgentStatus = code === 0 ? 'completed' : 'error'
+        childProcess.onExit((e) => {
+          const finalStatus: AgentStatus = e.exitCode === 0 ? 'completed' : 'error'
           sendAgentStatus(taskId, finalStatus)
           runs.delete(taskId)
         })
@@ -146,13 +135,16 @@ export function registerTerminalHandlers(): void {
 
   ipcMain.handle('agent:pty:data', (_event: unknown, input: { taskId: string; data: string }): void => {
     const run = runs.get(input.taskId)
-    if (run && run.childProcess.stdin && run.childProcess.stdin.writable) {
-      run.childProcess.stdin.write(input.data)
+    if (run && run.childProcess) {
+      run.childProcess.write(input.data)
     }
   })
 
   ipcMain.handle('agent:pty:resize', (_event: unknown, input: { taskId: string; cols: number; rows: number }): void => {
-    // Resize not supported with basic child_process, ignore safely
+    const run = runs.get(input.taskId)
+    if (run && run.childProcess) {
+      run.childProcess.resize(input.cols, input.rows)
+    }
   })
 
   ipcMain.handle('agent:pty:kill', async (_event: unknown, taskId: string): Promise<void> => {

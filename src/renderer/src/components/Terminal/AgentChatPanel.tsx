@@ -85,9 +85,16 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
     term.loadAddon(webLinksAddon)
     term.open(terminalRef.current)
     
-    // Initial fit
+    // Initial fit and auto-start
     setTimeout(() => {
       fitAddon.fit()
+      const currentStatus = useTerminalStore.getState().status[taskId]
+      const currentTask = useProjectStore.getState().tasks.find((t) => t.id === taskId)
+      if (!currentStatus || currentStatus === 'idle') {
+        if (currentTask) {
+          window.electronAPI.spawnAgentPty(taskId, currentTask.projectPath, term.cols || 80, term.rows || 30)
+        }
+      }
     }, 10)
 
     xtermRef.current = term
