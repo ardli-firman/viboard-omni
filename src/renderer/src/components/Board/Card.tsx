@@ -36,14 +36,14 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenTerminal }: KanbanCar
     <Card
       ref={setNodeRef}
       style={style}
-      className="cursor-grab active:cursor-grabbing"
+      className={`group/card cursor-grab rounded-xl border border-border/40 bg-background/80 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-md active:cursor-grabbing ${isDragging ? 'opacity-50 ring-2 ring-primary/50' : ''}`}
       {...attributes}
       {...listeners}
     >
-      <CardContent className="space-y-2 p-3">
-        <div className="flex items-start justify-between gap-2">
-          <h4 className="text-sm font-medium leading-tight">{task.title}</h4>
-          <div className="flex shrink-0 gap-0.5">
+      <CardContent className="space-y-3 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <h4 className="text-sm font-semibold leading-tight text-foreground">{task.title}</h4>
+          <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover/card:opacity-100">
             {task.agentStatus === 'running' ? (
               <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); onOpenTerminal() }}>
                 <Terminal className="h-3.5 w-3.5 text-blue-500" />
@@ -58,11 +58,11 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenTerminal }: KanbanCar
           </div>
         </div>
         {task.description && (
-          <p className="line-clamp-2 text-xs text-muted-foreground">{task.description}</p>
+          <p className="line-clamp-2 text-xs font-medium text-muted-foreground/80">{task.description}</p>
         )}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0">pi-agent</Badge>
-          <span className={`rounded-full px-1.5 py-0.5 text-[10px] border ${statusColors[task.agentStatus] ?? statusColors.idle}`}>
+        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+          <Badge variant="secondary" className="rounded-full bg-secondary/50 px-2 py-0.5 text-[10px] font-medium text-secondary-foreground hover:bg-secondary/70">pi-agent</Badge>
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${statusColors[task.agentStatus] ?? statusColors.idle}`}>
             {task.agentStatus}
           </span>
         </div>

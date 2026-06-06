@@ -54,7 +54,7 @@ export function KanbanColumn({
   }
 
   return (
-    <div ref={setNodeRef} style={style} className="flex w-72 shrink-0 flex-col gap-3">
+    <div ref={setNodeRef} style={style} className="group/column flex w-80 shrink-0 flex-col gap-3 rounded-2xl border border-border/40 bg-background/30 p-2 shadow-sm backdrop-blur-md transition-colors hover:bg-background/40">
       {/* Header: drag handle + title + count + delete */}
       <CardHeader className="flex flex-row items-center justify-between gap-1 px-3 py-2.5">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
@@ -72,18 +72,18 @@ export function KanbanColumn({
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 shrink-0 text-muted-foreground/50 hover:text-destructive"
+          className="h-7 w-7 shrink-0 text-muted-foreground/50 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover/column:opacity-100"
           onClick={() => setConfirmOpen(true)}
           title="Delete column"
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          <Trash2 className="h-4 w-4" />
         </Button>
       </CardHeader>
 
       {/* Tasks area */}
       <div
-        className={`flex flex-col gap-2 rounded-lg bg-muted/30 p-2 transition-colors ${
-          isOver ? 'bg-accent/30' : ''
+        className={`flex flex-col gap-2 rounded-xl bg-transparent transition-colors ${
+          isOver ? 'bg-primary/5 ring-2 ring-primary/20' : ''
         }`}
       >
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
@@ -98,7 +98,7 @@ export function KanbanColumn({
           ))}
         </SortableContext>
         {tasks.length === 0 && (
-          <div className="flex min-h-[4rem] items-center justify-center rounded-md border border-dashed text-xs text-muted-foreground">
+          <div className="flex min-h-[5rem] items-center justify-center rounded-xl border border-dashed border-border/60 text-sm font-medium text-muted-foreground/60 transition-colors hover:border-primary/30 hover:text-primary/60">
             Drop tasks here
           </div>
         )}
@@ -107,11 +107,11 @@ export function KanbanColumn({
       <Button
         variant="ghost"
         size="sm"
-        className="justify-start gap-1 text-muted-foreground"
+        className="mt-1 justify-start gap-2 rounded-xl text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary"
         onClick={onAddTask}
       >
-        <Plus className="h-3.5 w-3.5" />
-        Add task
+        <Plus className="h-4 w-4" />
+        <span className="font-medium">Add task</span>
       </Button>
 
       {/* Delete confirmation dialog */}

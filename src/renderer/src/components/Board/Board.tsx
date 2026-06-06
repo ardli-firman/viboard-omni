@@ -201,11 +201,11 @@ export function Board(): React.ReactElement {
   const activeColumn = activeId && activeType === 'column' ? sortedColumnsFromStore.find((c) => c.id === activeId) : null
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b px-6 py-3">
-        <h2 className="text-lg font-semibold">Board</h2>
-        <Button variant="outline" size="sm" onClick={() => setColumnModalOpen(true)}>
-          <Plus className="mr-1 h-4 w-4" />Add Column
+    <div className="flex h-full flex-col bg-transparent">
+      <div className="flex items-center justify-between border-b border-border/40 bg-background/40 px-6 py-4 backdrop-blur-md">
+        <h2 className="text-xl font-bold tracking-tight text-primary">Board</h2>
+        <Button variant="default" size="sm" className="rounded-full font-medium shadow-sm transition-transform hover:scale-105" onClick={() => setColumnModalOpen(true)}>
+          <Plus className="mr-1.5 h-4 w-4" />Add Column
         </Button>
       </div>
       <ScrollArea className="flex-1">
@@ -243,9 +243,9 @@ export function Board(): React.ReactElement {
                   onOpenTerminal={() => {}}
                 />
               ) : activeColumn ? (
-                <div className="flex w-72 shrink-0 flex-col gap-3 rounded-lg border bg-muted/30 p-3 opacity-90">
-                  <div className="text-sm font-medium">{activeColumn.title}</div>
-                  <div className="text-xs text-muted-foreground">
+                <div className="flex w-72 shrink-0 scale-105 flex-col gap-3 rounded-2xl border border-primary/20 bg-background/60 p-4 opacity-95 shadow-xl backdrop-blur-xl transition-transform">
+                  <div className="text-base font-bold text-primary">{activeColumn.title}</div>
+                  <div className="text-sm font-medium text-muted-foreground">
                     {tasks.filter((t) => t.columnId === activeColumn.id).length} tasks
                   </div>
                 </div>
@@ -254,10 +254,16 @@ export function Board(): React.ReactElement {
           </DndContext>
           {sortedColumns.length === 0 && (
             <div className="flex flex-1 items-center justify-center">
-              <div className="text-center">
-                <p className="text-muted-foreground">No columns yet</p>
-                <Button variant="outline" size="sm" className="mt-2" onClick={() => setColumnModalOpen(true)}>
-                  Create your first column
+              <div className="flex flex-col items-center gap-4 rounded-3xl border border-border/40 bg-background/40 p-12 text-center shadow-sm backdrop-blur-md">
+                <div className="rounded-full bg-primary/10 p-4">
+                  <Plus className="h-8 w-8 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-foreground">No columns yet</h3>
+                  <p className="mt-1 text-sm font-medium text-muted-foreground">Get started by creating your first column.</p>
+                </div>
+                <Button variant="default" className="mt-2 rounded-full px-6 shadow-sm transition-transform hover:scale-105" onClick={() => setColumnModalOpen(true)}>
+                  Create Column
                 </Button>
               </div>
             </div>

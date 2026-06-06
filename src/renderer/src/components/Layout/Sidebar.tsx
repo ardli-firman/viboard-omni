@@ -26,8 +26,8 @@ export function Sidebar(): React.ReactElement {
 
   return (
     <aside
-      className={`flex shrink-0 flex-col border-r bg-muted/20 transition-[width] duration-200 ease-out ${
-        collapsed ? 'w-12' : 'w-56'
+      className={`flex shrink-0 flex-col border-r border-border/40 bg-background/40 backdrop-blur-md transition-[width] duration-300 ease-in-out ${
+        collapsed ? 'w-16' : 'w-64'
       }`}
     >
       {/* Header: just label + collapse control */}
@@ -78,16 +78,16 @@ export function Sidebar(): React.ReactElement {
                 <button
                   key={p.path}
                   onClick={() => openProject(p.path)}
-                  className={`relative flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+                  className={`relative flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-300 ${
                     isCurrent
-                      ? 'bg-accent text-accent-foreground'
-                      : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                      ? 'bg-primary/15 text-primary shadow-sm'
+                      : 'text-muted-foreground hover:bg-primary/10 hover:text-primary'
                   }`}
                   title={p.name}
                 >
                   <Folder className="h-4 w-4" />
                   {isCurrent && (
-                    <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r-full bg-primary" />
+                    <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-primary" />
                   )}
                 </button>
               )
@@ -95,10 +95,10 @@ export function Sidebar(): React.ReactElement {
             return (
               <div
                 key={p.path}
-                className={`group flex items-center gap-0.5 rounded-md pr-1 transition-colors ${
+                className={`group flex items-center gap-0.5 rounded-xl pr-1 transition-all duration-300 ${
                   isCurrent
-                    ? 'bg-accent text-accent-foreground'
-                    : 'hover:bg-accent/50'
+                    ? 'bg-primary/15 text-primary shadow-sm'
+                    : 'hover:bg-primary/10 hover:text-primary text-muted-foreground'
                 }`}
               >
                 <button
@@ -129,7 +129,7 @@ export function Sidebar(): React.ReactElement {
 
       {/* Footer: add + close actions in a single clean row */}
       <div
-        className={`flex items-center gap-1 border-t p-1.5 ${
+        className={`flex items-center gap-1 border-t border-border/40 p-2 ${
           collapsed ? 'flex-col justify-center' : ''
         }`}
       >
