@@ -17,6 +17,8 @@ const api = {
     ipcRenderer.invoke('file:listDir', dirPath),
   readFile: (filePath: string): Promise<string | null> =>
     ipcRenderer.invoke('file:readFile', filePath),
+  readImage: (filePath: string): Promise<{ dataUrl: string; mimeType: string; size: number } | null> =>
+    ipcRenderer.invoke('file:readImage', filePath),
   getFileTree: (dirPath: string): Promise<FileTreeItem[]> =>
     ipcRenderer.invoke('file:getTree', dirPath),
   statFile: (filePath: string): Promise<FileEntry | null> =>

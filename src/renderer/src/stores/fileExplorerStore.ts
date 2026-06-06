@@ -1,6 +1,11 @@
 import { create } from 'zustand'
 import { toast } from 'sonner'
 
+const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.webp', '.svg', '.avif'])
+function isImageExt(ext: string): boolean {
+  return IMAGE_EXTS.has(ext.toLowerCase())
+}
+
 export interface FileEntry {
   name: string
   path: string
@@ -28,6 +33,7 @@ export interface OpenFile {
   loading: boolean
   error: string | null
   dirty: boolean
+  isImage: boolean
 }
 
 interface FileExplorerState {
@@ -96,7 +102,8 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
       set({ activeFilePath: path })
       return
     }
-
+    const ext = '.' + (name.split('.').pop() ?? '').toLowerCase()
+    const isImage = isImageExt(ext)
     const placeholder: OpenFile = {
       path,
       name,
@@ -105,6 +112,7 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
       loading: true,
       error: null,
       dirty: false,
+      isImage,
     }
 
     set({
@@ -113,19 +121,35 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
     })
 
     try {
-      const content = await window.electronAPI.readFile(path)
-      set((s) => ({
-        openFiles: s.openFiles.map((f) =>
-          f.path === path
-            ? {
-                ...f,
-                content: content,
-                loading: false,
-                error: content === null ? 'Binary or unreadable file' : null,
-              }
-            : f,
-        ),
-      }))
+      if (isImage) {
+        const img = await window.electronAPI.readImage(path)
+        set((s) => ({
+          openFiles: s.openFiles.map((f) =>
+            f.path === path
+              ? {
+                  ...f,
+                  content: img?.dataUrl ?? null,
+                  loading: false,
+                  error: img ? null : 'Failed to load image',
+                }
+              : f,
+          ),
+        }))
+      } else {
+        const content = await window.electronAPI.readFile(path)
+        set((s) => ({
+          openFiles: s.openFiles.map((f) =>
+            f.path === path
+              ? {
+                  ...f,
+                  content,
+                  loading: false,
+                  error: content === null ? 'Binary or unreadable file' : null,
+                }
+              : f,
+          ),
+        }))
+      }
     } catch (err) {
       set((s) => ({
         openFiles: s.openFiles.map((f) =>

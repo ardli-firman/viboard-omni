@@ -106,6 +106,19 @@ export function FileEditor({ file }: FileEditorProps): ReactElement {
     )
   }
 
+  // Render image files inline
+  if (file.isImage && file.content) {
+    return (
+      <div className="flex flex-1 items-center justify-center overflow-auto p-4">
+        <img
+          src={file.content}
+          alt={file.name}
+          className="max-h-full max-w-full object-contain"
+        />
+      </div>
+    )
+  }
+
   if (file.content === null) {
     return (
       <div className="flex flex-1 items-center justify-center py-8">
