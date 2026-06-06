@@ -12,6 +12,7 @@ interface TaskRow {
   project_path: string
   agent_type: string
   agent_status: string
+  agent_session_id: string | null
   custom_agent_command: string | null
   tags: string
   created_at: number
@@ -28,6 +29,7 @@ function rowToTask(row: TaskRow): Task {
     projectPath: row.project_path,
     agentType: row.agent_type as AgentType,
     agentStatus: row.agent_status as AgentStatus,
+    agentSessionId: row.agent_session_id ?? undefined,
     customAgentCommand: row.custom_agent_command ?? undefined,
     tags: JSON.parse(row.tags) as string[],
     createdAt: row.created_at,
@@ -41,11 +43,11 @@ export function registerTaskHandlers(): void {
     let rows: TaskRow[]
     if (projectPath) {
       rows = db
-        .prepare('SELECT id, title, description, column_id, "order", project_path, agent_type, agent_status, custom_agent_command, tags, created_at, updated_at FROM tasks WHERE project_path = ? ORDER BY "order" ASC')
+        .prepare('SELECT id, title, description, column_id, "order", project_path, agent_type, agent_status, agent_session_id, custom_agent_command, tags, created_at, updated_at FROM tasks WHERE project_path = ? ORDER BY "order" ASC')
         .all(projectPath) as TaskRow[]
     } else {
       rows = db
-        .prepare('SELECT id, title, description, column_id, "order", project_path, agent_type, agent_status, custom_agent_command, tags, created_at, updated_at FROM tasks ORDER BY "order" ASC')
+        .prepare('SELECT id, title, description, column_id, "order", project_path, agent_type, agent_status, agent_session_id, custom_agent_command, tags, created_at, updated_at FROM tasks ORDER BY "order" ASC')
         .all() as TaskRow[]
     }
     return rows.map(rowToTask)

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import type { AgentStatus } from '@shared/types'
 
 export type AgentBlock =
@@ -30,7 +31,7 @@ interface AgentChatState {
   applyEvent: (taskId: string, promptId: number, raw: Record<string, unknown>) => void
   finalizeMessage: (taskId: string, promptId: number, error?: string) => void
   setStatus: (taskId: string, status: AgentStatus) => void
-  setSessionId: (taskId: string, sessionId: string) => void
+  setSessionId: (taskId: string, sessionId: string | null) => void
   clearThread: (taskId: string) => void
   setPanelHeight: (updater: number | ((prev: number) => number)) => void
 }
@@ -54,10 +55,12 @@ function ensureBlock<K extends AgentBlock['kind']>(
   return created as Extract<AgentBlock, { kind: K }>
 }
 
-export const useTerminalStore = create<AgentChatState>((set) => ({
-  activeTaskId: null,
-  panelOpen: false,
-  threads: {},
+export const useTerminalStore = create<AgentChatState>()(
+  persist(
+    (set) => ({
+      activeTaskId: null,
+      panelOpen: false,
+      threads: {},
   status: {},
   sessionId: {},
   panelHeight: 420,
@@ -75,7 +78,7 @@ export const useTerminalStore = create<AgentChatState>((set) => ({
     set((s) => {
       // Only process specific NDJSON event types from the agent output stream.
       const type = raw.type as string | undefined
-      if (type !== 'session' && type !== 'message_start' && type !== 'message_update' && type !== 'message_end' && type !== 'turn_end' && type !== 'agent_end') {
+      if (type !== 'session' && type !== 'session_cleared' && type !== 'message_start' && type !== 'message_update' && type !== 'message_end' && type !== 'turn_end' && type !== 'agent_end') {
         return s
       }
 
@@ -100,6 +103,11 @@ export const useTerminalStore = create<AgentChatState>((set) => ({
           // Schedule async setSessionId to avoid dispatching inside zustand updater.
           setTimeout(() => useTerminalStore.getState().setSessionId(taskId, sid), 0)
         }
+        return { threads: { ...s.threads, [taskId]: list } }
+      }
+
+      if (type === 'session_cleared') {
+        setTimeout(() => useTerminalStore.getState().setSessionId(taskId, null), 0)
         return { threads: { ...s.threads, [taskId]: list } }
       }
 
@@ -187,4 +195,13 @@ export const useTerminalStore = create<AgentChatState>((set) => ({
       // Limit height between 200px and 1200px
       return { panelHeight: Math.max(200, Math.min(newHeight, 1200)) }
     }),
-}))
+  }),
+  {
+    name: 'viboard-terminal-store',
+    partialize: (state) => ({
+      threads: state.threads,
+      sessionId: state.sessionId,
+      panelHeight: state.panelHeight,
+    }),
+  }
+))

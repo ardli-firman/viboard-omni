@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, app } from 'electron'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -47,6 +47,12 @@ function broadcast(channel: string, payload: unknown): void {
 }
 
 function sendAgentStatus(taskId: string, status: AgentStatus): void {
+  try {
+    const db = getDatabase()
+    db.prepare('UPDATE tasks SET agent_status = ?, updated_at = ? WHERE id = ?').run(status, Date.now(), taskId)
+  } catch (err) {
+    console.error('[agent] failed to persist agent status', err)
+  }
   broadcast('agent:status', { taskId, status })
 }
 
@@ -138,6 +144,19 @@ function handleStderr(taskId: string, promptId: number, chunk: Buffer): void {
   const message = chunk.toString('utf-8').trimEnd()
   if (message) {
     emitError(taskId, promptId, `[omp stderr] ${message}`)
+    if (message.includes('Session "') && message.includes('" not found')) {
+      // Clear the session ID because it's expired/lost from the backend
+      try {
+        const db = getDatabase()
+        db.prepare('UPDATE tasks SET agent_session_id = NULL, updated_at = ? WHERE id = ?').run(
+          Date.now(),
+          taskId,
+        )
+      } catch (err) {
+        console.error('[agent] failed to reset session id', err)
+      }
+      sendAgentOutput({ taskId, promptId, type: 'session_cleared' })
+    }
   }
 }
 
