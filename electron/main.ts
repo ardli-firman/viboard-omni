@@ -4,7 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initDatabase } from './database/init'
 import { registerColumnHandlers } from './ipc/columns'
 import { registerTaskHandlers } from './ipc/tasks'
-import { registerTerminalHandlers } from './ipc/terminal'
+import { registerTerminalHandlers, shutdownAllSessions } from './ipc/terminal'
 import { registerThemeHandlers } from './ipc/theme'
 import { registerLogHandlers } from './ipc/log'
 import { registerFileHandlers } from './ipc/files'
@@ -71,4 +71,8 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('before-quit', () => {
+  shutdownAllSessions()
 })

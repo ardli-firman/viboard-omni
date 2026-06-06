@@ -1,4 +1,4 @@
-import type { Task } from '@shared/types'
+import type { Task, AgentStatus } from '@shared/types'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Card, CardContent } from '../ui/card'
@@ -13,11 +13,18 @@ interface KanbanCardProps {
   onOpenTerminal: () => void
 }
 
-const statusColors: Record<string, string> = {
+const statusColors: Record<AgentStatus, string> = {
   idle: 'bg-muted text-muted-foreground',
   running: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
   completed: 'bg-green-500/10 text-green-500 border-green-500/20',
   error: 'bg-red-500/10 text-red-500 border-red-500/20',
+}
+
+const terminalIconColor: Record<AgentStatus, string> = {
+  idle: 'text-muted-foreground',
+  running: 'text-blue-500',
+  completed: 'text-green-500',
+  error: 'text-red-500',
 }
 
 export function KanbanCard({ task, onEdit, onDelete, onOpenTerminal }: KanbanCardProps): React.ReactElement {
@@ -44,11 +51,22 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenTerminal }: KanbanCar
         <div className="flex items-start justify-between gap-3">
           <h4 className="text-sm font-semibold leading-tight text-foreground">{task.title}</h4>
           <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover/card:opacity-100">
-            {task.agentStatus === 'running' ? (
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); onOpenTerminal() }}>
-                <Terminal className="h-3.5 w-3.5 text-blue-500" />
-              </Button>
-            ) : null}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              title={
+                task.agentStatus === 'running'
+                  ? 'Open omp session'
+                  : 'Start omp session for this task'
+              }
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenTerminal()
+              }}
+            >
+              <Terminal className={`h-3.5 w-3.5 ${terminalIconColor[task.agentStatus] ?? terminalIconColor.idle}`} />
+            </Button>
             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); onEdit() }}>
               <Pencil className="h-3.5 w-3.5" />
             </Button>

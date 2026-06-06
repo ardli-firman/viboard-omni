@@ -1,9 +1,11 @@
 import { create } from 'zustand'
+import type { AgentStatus } from '@shared/types'
 
 interface TerminalSession {
   taskId: string
   isActive: boolean
   pid: number | null
+  status: AgentStatus
 }
 
 interface TerminalState {
@@ -12,8 +14,9 @@ interface TerminalState {
   panelOpen: boolean
   openPanel: (taskId: string) => void
   closePanel: () => void
-  registerSession: (taskId: string, pid: number | null) => void
+  registerSession: (taskId: string, pid: number | null, status: AgentStatus) => void
   removeSession: (taskId: string) => void
+  setSessionStatus: (taskId: string, status: AgentStatus) => void
   setActiveTaskId: (taskId: string | null) => void
 }
 
@@ -30,11 +33,11 @@ export const useTerminalStore = create<TerminalState>((set) => ({
     set({ panelOpen: false, activeTaskId: null })
   },
 
-  registerSession: (taskId, pid) => {
+  registerSession: (taskId, pid, status) => {
     set((s) => ({
       sessions: {
         ...s.sessions,
-        [taskId]: { taskId, isActive: true, pid },
+        [taskId]: { taskId, isActive: true, pid, status },
       },
     }))
   },
@@ -43,6 +46,30 @@ export const useTerminalStore = create<TerminalState>((set) => ({
     set((s) => {
       const { [taskId]: _, ...rest } = s.sessions
       return { sessions: rest }
+    })
+  },
+
+  setSessionStatus: (taskId, status) => {
+    set((s) => {
+      const existing = s.sessions[taskId]
+      if (!existing) {
+        return {
+          sessions: {
+            ...s.sessions,
+            [taskId]: { taskId, isActive: status === 'running', pid: null, status },
+          },
+        }
+      }
+      return {
+        sessions: {
+          ...s.sessions,
+          [taskId]: {
+            ...existing,
+            isActive: status === 'running',
+            status,
+          },
+        },
+      }
     })
   },
 

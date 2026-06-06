@@ -254,17 +254,13 @@ export function Board(): React.ReactElement {
           </DndContext>
           {sortedColumns.length === 0 && (
             <div className="flex flex-1 items-center justify-center">
-              <div className="flex flex-col items-center gap-4 rounded-3xl border border-border/40 bg-background/40 p-12 text-center shadow-sm backdrop-blur-md">
-                <div className="rounded-full bg-primary/10 p-4">
-                  <Plus className="h-8 w-8 text-primary" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-foreground">No columns yet</h3>
-                  <p className="mt-1 text-sm font-medium text-muted-foreground">Get started by creating your first column.</p>
-                </div>
-                <Button variant="default" className="mt-2 rounded-full px-6 shadow-sm transition-transform hover:scale-105" onClick={() => setColumnModalOpen(true)}>
-                  Create Column
-                </Button>
+              <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border/60 bg-background/20 px-10 py-8 text-center backdrop-blur-sm">
+                <p className="text-sm font-medium text-muted-foreground">
+                  No columns in this board
+                </p>
+                <p className="text-xs text-muted-foreground/70">
+                  Use the <span className="font-semibold text-foreground/80">Add Column</span> button above to create one.
+                </p>
               </div>
             </div>
           )}

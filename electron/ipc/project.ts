@@ -1,6 +1,8 @@
 import { app, ipcMain, dialog } from 'electron'
 import { existsSync, readFileSync, writeFileSync, statSync } from 'node:fs'
 import { join, basename } from 'node:path'
+import { getDatabase } from '../database/init'
+import { v4 as uuid } from 'uuid'
 import type { RegisteredProject } from '../../src/shared/types'
 
 const STORE_FILE = 'projects.json'
@@ -46,6 +48,32 @@ function isDirectory(path: string): boolean {
     return false
   }
 }
+const DEFAULT_COLUMNS: { title: string; color: string }[] = [
+  { title: 'Todo', color: '#3b82f6' },
+  { title: 'In Progress', color: '#f59e0b' },
+  { title: 'Done', color: '#10b981' },
+]
+
+function ensureDefaultBoard(projectPath: string): void {
+  const db = getDatabase()
+  const row = db
+    .prepare('SELECT COUNT(*) as cnt FROM columns WHERE project_path = ?')
+    .get(projectPath) as { cnt: number }
+  if (row.cnt > 0) return
+
+  const now = Date.now()
+  const stmt = db.prepare(
+    'INSERT INTO columns (id, title, "order", color, project_path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  )
+  const insert = db.transaction((cols: typeof DEFAULT_COLUMNS, pp: string) => {
+    cols.forEach((c, idx) => {
+      stmt.run(uuid(), c.title, idx, c.color, pp, now, now)
+    })
+  })
+  insert(DEFAULT_COLUMNS, projectPath)
+  console.log('[project:add] Seeded default board for', projectPath)
+}
+
 
 async function pickFolder(): Promise<string | null> {
   const result = await dialog.showOpenDialog({
@@ -87,6 +115,7 @@ export function registerProjectHandlers(): void {
     }
     projects.push(project)
     writeStore(projects)
+    ensureDefaultBoard(path)
     console.log('[project:add] Added:', path)
     return project
   })

@@ -12,13 +12,26 @@ import { useProjectStore } from './stores/projectStore'
 
 function App(): React.ReactElement {
   const { init } = useThemeStore()
-  const { panelOpen, activeTaskId } = useTerminalStore()
-  const { currentProject, loadProjects } = useProjectStore()
+  const { panelOpen, activeTaskId, setSessionStatus } = useTerminalStore()
+  const { currentProject, loadProjects, setAgentStatus } = useProjectStore()
 
   useEffect(() => {
     init()
     loadProjects()
   }, [init, loadProjects])
+
+  // Bridge OMP agent session status from main process into the renderer stores.
+  useEffect(() => {
+    const handler = (data: { taskId: string; status: 'idle' | 'running' | 'completed' | 'error' }): void => {
+      setSessionStatus(data.taskId, data.status)
+      setAgentStatus(data.taskId, data.status)
+    }
+    window.electronAPI.onAgentStatus(handler)
+    return () => {
+      window.electronAPI.removeAgentStatusListener()
+    }
+  }, [setSessionStatus, setAgentStatus])
+
   return (
     <>
       <div className="flex h-screen flex-col bg-background">

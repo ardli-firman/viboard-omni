@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { Column, Task, ThemeMode, RegisteredProject } from '../src/shared/types'
 import type { FileEntry, FileTreeItem } from './ipc/files'
 
+type AgentStatus = 'idle' | 'running' | 'completed' | 'error'
+
 const api = {
   // Project list
   listProjects: (): Promise<RegisteredProject[]> => ipcRenderer.invoke('project:list'),
@@ -42,7 +44,11 @@ const api = {
   moveTask: (taskId: string, columnId: string, order: number): Promise<Task> =>
     ipcRenderer.invoke('task:move', taskId, columnId, order),
 
-  spawnTerminal: (taskId: string, projectPath: string): Promise<{ pid: number | null }> =>
+  // OMP agent session per task — one session per task.
+  spawnTerminal: (
+    taskId: string,
+    projectPath: string,
+  ): Promise<{ pid: number | null; agentStatus: AgentStatus }> =>
     ipcRenderer.invoke('terminal:spawn', { taskId, projectPath }),
   sendTerminalInput: (taskId: string, input: string): Promise<void> =>
     ipcRenderer.invoke('terminal:input', { taskId, input }),
@@ -50,6 +56,8 @@ const api = {
     ipcRenderer.invoke('terminal:resize', { taskId, cols, rows }),
   killTerminal: (taskId: string): Promise<void> =>
     ipcRenderer.invoke('terminal:kill', { taskId }),
+  getTerminalStatus: (taskId: string): Promise<AgentStatus> =>
+    ipcRenderer.invoke('terminal:status', taskId),
 
   onTerminalOutput: (callback: (data: { taskId: string; data: string }) => void): void => {
     const handler = (
@@ -60,6 +68,17 @@ const api = {
   },
   removeTerminalOutputListener: (): void => {
     ipcRenderer.removeAllListeners('terminal:output')
+  },
+
+  onAgentStatus: (callback: (data: { taskId: string; status: AgentStatus }) => void): void => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { taskId: string; status: AgentStatus },
+    ): void => callback(data)
+    ipcRenderer.on('agent:status', handler)
+  },
+  removeAgentStatusListener: (): void => {
+    ipcRenderer.removeAllListeners('agent:status')
   },
 
   getTheme: (): Promise<ThemeMode> => ipcRenderer.invoke('theme:get'),
