@@ -2,7 +2,7 @@ import { ipcMain, BrowserWindow, app } from 'electron'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync, renameSync, statSync } from 'node:fs'
 import { getDatabase } from '../database/init'
 import type {
   AgentStatus,
@@ -21,6 +21,40 @@ interface AgentRun {
 
 const runs = new Map<string, AgentRun>()
 let nextPromptId = 1
+
+function recoverOmpSession(sessionId: string): void {
+  const sessionsDir = path.join(os.homedir(), '.omp', 'agent', 'sessions')
+  if (!existsSync(sessionsDir)) return
+
+  function searchAndRecover(dir: string): void {
+    const entries = readdirSync(dir)
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry)
+      try {
+        const stat = statSync(fullPath)
+        if (stat.isDirectory()) {
+          searchAndRecover(fullPath)
+        } else if (fullPath.endsWith('.tmp') && fullPath.includes(sessionId)) {
+          const match = fullPath.match(/(?:[/\\]|^)\.?([^/\\]+\.jsonl)\.[a-f0-9]+\.tmp$/)
+          if (match) {
+            const originalName = match[1]
+            const targetPath = path.join(dir, originalName)
+            renameSync(fullPath, targetPath)
+            console.log('[agent] recovered session file:', targetPath)
+          }
+        }
+      } catch (err) {
+        // ignore locked files or permission errors
+      }
+    }
+  }
+
+  try {
+    searchAndRecover(sessionsDir)
+  } catch (err) {
+    // ignore
+  }
+}
 
 function resolveOmpBinary(): string {
   if (process.platform === 'win32') {
@@ -102,7 +136,24 @@ function killRun(taskId: string): void {
   } catch {
     // already dead
   }
-  runs.delete(taskId)
+}
+
+async function killRunAsync(taskId: string): Promise<void> {
+  const run = runs.get(taskId)
+  if (!run) return
+  return new Promise<void>((resolve) => {
+    const timeout = setTimeout(resolve, 2000)
+    run.child.once('close', () => {
+      clearTimeout(timeout)
+      resolve()
+    })
+    try {
+      run.child.kill()
+    } catch {
+      clearTimeout(timeout)
+      resolve()
+    }
+  })
 }
 
 function processLine(taskId: string, promptId: number, line: string): void {
@@ -163,11 +214,11 @@ function handleStderr(taskId: string, promptId: number, chunk: Buffer): void {
 export function registerTerminalHandlers(): void {
   ipcMain.handle(
     'agent:prompt',
-    (_event: unknown, input: AgentPromptInput): { promptId: number; sessionId: string | null } => {
+    async (_event: unknown, input: AgentPromptInput): Promise<{ promptId: number; sessionId: string | null }> => {
       const { taskId, projectPath, prompt } = input
 
       if (runs.has(taskId)) {
-        killRun(taskId)
+        await killRunAsync(taskId)
       }
 
       const promptId = nextPromptId++
@@ -179,6 +230,7 @@ export function registerTerminalHandlers(): void {
       // `session` event). Subsequent prompts: --resume <id> to continue conversation.
       const args: string[] = ['--mode=json']
       if (sessionId) {
+        recoverOmpSession(sessionId)
         args.push('--resume', sessionId)
       }
       args.push('-p', prompt)
@@ -243,8 +295,8 @@ export function registerTerminalHandlers(): void {
     },
   )
 
-  ipcMain.handle('agent:kill', (_event: unknown, taskId: string): void => {
-    killRun(taskId)
+  ipcMain.handle('agent:kill', async (_event: unknown, taskId: string): Promise<void> => {
+    await killRunAsync(taskId)
     sendAgentStatus(taskId, 'idle')
   })
 
@@ -252,7 +304,7 @@ export function registerTerminalHandlers(): void {
     return runs.get(taskId)?.status ?? 'idle'
   })
 
-  ipcMain.handle('agent:reset', (_event: unknown, taskId: string): void => {
+  ipcMain.handle('agent:reset', async (_event: unknown, taskId: string): Promise<void> => {
     try {
       const db = getDatabase()
       db.prepare('UPDATE tasks SET agent_session_id = NULL, updated_at = ? WHERE id = ?').run(
@@ -262,7 +314,7 @@ export function registerTerminalHandlers(): void {
     } catch (err) {
       console.error('[agent] failed to reset session id', err)
     }
-    killRun(taskId)
+    await killRunAsync(taskId)
     sendAgentStatus(taskId, 'idle')
   })
 }

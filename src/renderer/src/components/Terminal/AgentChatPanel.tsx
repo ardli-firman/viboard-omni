@@ -104,6 +104,9 @@ function MessageBubble({ message }: { message: AgentMessage }): React.ReactEleme
             {message.blocks.length === 0 && !message.done && (
               <span className="text-muted-foreground">omp is starting…</span>
             )}
+            {message.blocks.length === 0 && message.done && !message.errorText && (
+              <span className="text-muted-foreground italic text-[12px]">(empty response)</span>
+            )}
             {message.blocks.map((block, i) => {
               if (block.kind === 'text') {
                 return (
@@ -118,6 +121,14 @@ function MessageBubble({ message }: { message: AgentMessage }): React.ReactEleme
                 )
               }
               if (block.kind === 'thinking') {
+                const hasText = message.blocks.some((b) => b.kind === 'text' && (b.text || '').trim().length > 0)
+                if (message.done && !hasText) {
+                  return (
+                    <div key={i} className="rounded-2xl bg-muted/30 px-4 py-3 text-sm whitespace-pre-wrap">
+                      {block.text || '(empty response)'}
+                    </div>
+                  )
+                }
                 return <ThinkingBlock key={i} text={block.text} />
               }
               if (block.kind === 'tool') {

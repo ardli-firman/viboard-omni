@@ -123,23 +123,29 @@ export const useTerminalStore = create<AgentChatState>()(
         if (!evt) return { threads: { ...s.threads, [taskId]: list } }
 
         if (evt.type === 'thinking_start') {
-          ensureBlock(message, 'thinking')
+          if (!message.blocks.some((b) => b.kind === 'thinking')) {
+            ensureBlock(message, 'thinking')
+          }
         } else if (evt.type === 'thinking_delta' && typeof evt.delta === 'string') {
-          const block = ensureBlock(message, 'thinking')
+          let block = message.blocks.find((b) => b.kind === 'thinking') as Extract<AgentBlock, { kind: 'thinking' }> | undefined
+          if (!block) block = ensureBlock(message, 'thinking')
           block.text += evt.delta
         } else if (evt.type === 'thinking_end') {
           if (typeof evt.content === 'string') {
-            const block = ensureBlock(message, 'thinking')
+            let block = message.blocks.find((b) => b.kind === 'thinking') as Extract<AgentBlock, { kind: 'thinking' }> | undefined
+            if (!block) block = ensureBlock(message, 'thinking')
             block.text = evt.content
           }
         } else if (evt.type === 'text_start') {
           ensureBlock(message, 'text')
         } else if (evt.type === 'text_delta' && typeof evt.delta === 'string') {
-          const block = ensureBlock(message, 'text')
+          let block = message.blocks.slice().reverse().find((b) => b.kind === 'text') as Extract<AgentBlock, { kind: 'text' }> | undefined
+          if (!block) block = ensureBlock(message, 'text')
           block.text += evt.delta
         } else if (evt.type === 'text_end') {
           if (typeof evt.content === 'string') {
-            const block = ensureBlock(message, 'text')
+            let block = message.blocks.slice().reverse().find((b) => b.kind === 'text') as Extract<AgentBlock, { kind: 'text' }> | undefined
+            if (!block) block = ensureBlock(message, 'text')
             block.text = evt.content
           }
         } else if (evt.type === 'tool_use_start' || evt.type === 'tool_use_delta' || evt.type === 'tool_use_end') {
