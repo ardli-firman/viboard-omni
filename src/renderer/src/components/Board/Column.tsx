@@ -23,7 +23,7 @@ interface ColumnProps {
   onAddTask: () => void
   onEditTask: (task: Task) => void
   onDeleteTask: (taskId: string) => void
-  onOpenTerminal: (task: Task) => void
+  onOpenChat: (task: Task) => void
   onDeleteColumn: (columnId: string) => void
 }
 
@@ -34,7 +34,7 @@ export function KanbanColumn({
   onAddTask,
   onEditTask,
   onDeleteTask,
-  onOpenTerminal,
+  onOpenChat,
   onDeleteColumn,
 }: ColumnProps): React.ReactElement {
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -93,7 +93,7 @@ export function KanbanColumn({
               task={task}
               onEdit={() => onEditTask(task)}
               onDelete={() => onDeleteTask(task.id)}
-              onOpenTerminal={() => onOpenTerminal(task)}
+              onOpenChat={() => onOpenChat(task)}
             />
           ))}
         </SortableContext>

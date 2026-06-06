@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Column, Task, ThemeMode, RegisteredProject } from '../src/shared/types'
+import type { Column, Task, ThemeMode, RegisteredProject, AgentOutputEvent } from '../src/shared/types'
 import type { FileEntry, FileTreeItem } from './ipc/files'
 
 type AgentStatus = 'idle' | 'running' | 'completed' | 'error'
@@ -44,30 +44,29 @@ const api = {
   moveTask: (taskId: string, columnId: string, order: number): Promise<Task> =>
     ipcRenderer.invoke('task:move', taskId, columnId, order),
 
-  // OMP agent session per task — one session per task.
-  spawnTerminal: (
+  // OMP agent session per task — chat-style, no terminal. One persistent session
+  // per task; each prompt spawns a short-lived omp process that streams NDJSON
+  // events back to the renderer.
+  sendAgentPrompt: (
     taskId: string,
     projectPath: string,
-  ): Promise<{ pid: number | null; agentStatus: AgentStatus }> =>
-    ipcRenderer.invoke('terminal:spawn', { taskId, projectPath }),
-  sendTerminalInput: (taskId: string, input: string): Promise<void> =>
-    ipcRenderer.invoke('terminal:input', { taskId, input }),
-  resizeTerminal: (taskId: string, cols: number, rows: number): Promise<void> =>
-    ipcRenderer.invoke('terminal:resize', { taskId, cols, rows }),
-  killTerminal: (taskId: string): Promise<void> =>
-    ipcRenderer.invoke('terminal:kill', { taskId }),
-  getTerminalStatus: (taskId: string): Promise<AgentStatus> =>
-    ipcRenderer.invoke('terminal:status', taskId),
+    prompt: string,
+  ): Promise<{ promptId: number; sessionId: string | null }> =>
+    ipcRenderer.invoke('agent:prompt', { taskId, projectPath, prompt }),
+  killAgent: (taskId: string): Promise<void> =>
+    ipcRenderer.invoke('agent:kill', taskId),
+  getAgentStatus: (taskId: string): Promise<AgentStatus> =>
+    ipcRenderer.invoke('agent:status', taskId),
+  resetAgentSession: (taskId: string): Promise<void> =>
+    ipcRenderer.invoke('agent:reset', taskId),
 
-  onTerminalOutput: (callback: (data: { taskId: string; data: string }) => void): void => {
-    const handler = (
-      _event: Electron.IpcRendererEvent,
-      data: { taskId: string; data: string },
-    ): void => callback(data)
-    ipcRenderer.on('terminal:output', handler)
+  onAgentOutput: (callback: (data: AgentOutputEvent) => void): void => {
+    const handler = (_event: Electron.IpcRendererEvent, data: AgentOutputEvent): void =>
+      callback(data)
+    ipcRenderer.on('agent:output', handler)
   },
-  removeTerminalOutputListener: (): void => {
-    ipcRenderer.removeAllListeners('terminal:output')
+  removeAgentOutputListener: (): void => {
+    ipcRenderer.removeAllListeners('agent:output')
   },
 
   onAgentStatus: (callback: (data: { taskId: string; status: AgentStatus }) => void): void => {

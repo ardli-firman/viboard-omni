@@ -22,6 +22,7 @@ export interface Task {
   projectPath: string
   agentType: AgentType
   agentStatus: AgentStatus
+  agentSessionId?: string
   customAgentCommand?: string
   tags: string[]
   createdAt: number
@@ -35,27 +36,20 @@ export interface RegisteredProject {
   lastOpenedAt: number
 }
 
-export interface TerminalOutput {
+// OMP agent JSON-mode events as forwarded to renderer
+export interface AgentOutputEvent {
   taskId: string
-  data: string
+  promptId: number
+  raw?: Record<string, unknown>
+  type?: string
+  prompt?: string
+  message?: string
+  exitCode?: number | null
+  signal?: string | null
 }
 
-export interface TerminalSpawnInput {
+export interface AgentPromptInput {
   taskId: string
   projectPath: string
-}
-
-export interface TerminalInput {
-  taskId: string
-  input: string
-}
-
-export interface TerminalResizeInput {
-  taskId: string
-  cols: number
-  rows: number
-}
-
-export interface TerminalKillInput {
-  taskId: string
+  prompt: string
 }

@@ -31,8 +31,16 @@ function migrateSchema(): void {
 
   // v3: Add project_path to columns table
   try {
-    db.exec('ALTER TABLE columns ADD COLUMN project_path TEXT NOT NULL DEFAULT \'\'')
+    db.exec("ALTER TABLE columns ADD COLUMN project_path TEXT NOT NULL DEFAULT ''")
     console.log('[db] Migration: added project_path to columns table')
+  } catch {
+    // Column already exists
+  }
+
+  // v4: Add agent_session_id to tasks table for OMP session persistence
+  try {
+    db.exec('ALTER TABLE tasks ADD COLUMN agent_session_id TEXT DEFAULT NULL')
+    console.log('[db] Migration: added agent_session_id to tasks table')
   } catch {
     // Column already exists
   }
@@ -59,6 +67,7 @@ function createTables(): void {
       project_path TEXT DEFAULT '',
       agent_type TEXT NOT NULL DEFAULT 'pi-agent',
       agent_status TEXT NOT NULL DEFAULT 'idle',
+      agent_session_id TEXT DEFAULT NULL,
       custom_agent_command TEXT,
       tags TEXT NOT NULL DEFAULT '[]',
       created_at INTEGER NOT NULL,

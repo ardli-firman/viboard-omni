@@ -1,29 +1,28 @@
 import { ipcMain, BrowserWindow } from 'electron'
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { existsSync } from 'node:fs'
-import * as pty from 'node-pty'
+import { getDatabase } from '../database/init'
 import type {
-  TerminalOutput,
-  TerminalSpawnInput,
-  TerminalInput,
-  TerminalResizeInput,
-  TerminalKillInput,
+  AgentStatus,
+  AgentOutputEvent,
+  AgentPromptInput,
 } from '../../src/shared/types'
 
-interface AgentSession {
-  pty: pty.IPty
-  pid: number
+interface AgentRun {
   taskId: string
-  projectPath: string
-  agentStatus: 'idle' | 'running' | 'completed' | 'error'
-  exited: boolean
+  sessionId: string | null
+  promptId: number
+  child: ChildProcessWithoutNullStreams
+  status: AgentStatus
+  buffer: string
 }
 
-const activeSessions = new Map<string, AgentSession>()
+const runs = new Map<string, AgentRun>()
+let nextPromptId = 1
 
 function resolveOmpBinary(): string {
-  // Prefer the omp shim on PATH (works for users with the bun global bin on PATH).
   if (process.platform === 'win32') {
     const candidates = [
       path.join(os.homedir(), '.bun', 'bin', 'omp.exe'),
@@ -39,130 +38,218 @@ function resolveOmpBinary(): string {
   return 'omp'
 }
 
-function sendToRenderer(taskId: string, data: string): void {
-  const windows = BrowserWindow.getAllWindows()
-  for (const win of windows) {
+function broadcast(channel: string, payload: unknown): void {
+  for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) {
-      const payload: TerminalOutput = { taskId, data }
-      win.webContents.send('terminal:output', payload)
+      win.webContents.send(channel, payload)
     }
   }
 }
 
-function sendAgentStatus(taskId: string, status: 'idle' | 'running' | 'completed' | 'error'): void {
-  const windows = BrowserWindow.getAllWindows()
-  for (const win of windows) {
-    if (!win.isDestroyed()) {
-      win.webContents.send('agent:status', { taskId, status })
-    }
-  }
+function sendAgentStatus(taskId: string, status: AgentStatus): void {
+  broadcast('agent:status', { taskId, status })
 }
 
-function killSession(taskId: string): void {
-  const session = activeSessions.get(taskId)
-  if (!session) return
+function sendAgentOutput(event: AgentOutputEvent): void {
+  broadcast('agent:output', event)
+}
+
+function loadSessionId(taskId: string): string | null {
   try {
-    session.pty.kill()
+    const db = getDatabase()
+    const row = db
+      .prepare('SELECT agent_session_id FROM tasks WHERE id = ?')
+      .get(taskId) as { agent_session_id: string | null } | undefined
+    return row?.agent_session_id ?? null
   } catch {
-    // process already dead
+    return null
   }
-  activeSessions.delete(taskId)
+}
+
+function saveSessionId(taskId: string, sessionId: string): void {
+  try {
+    const db = getDatabase()
+    db.prepare('UPDATE tasks SET agent_session_id = ?, updated_at = ? WHERE id = ?').run(
+      sessionId,
+      Date.now(),
+      taskId,
+    )
+  } catch (err) {
+    console.error('[agent] failed to persist session id', err)
+  }
+}
+
+function emitError(taskId: string, promptId: number, message: string): void {
+  sendAgentOutput({
+    taskId,
+    promptId,
+    type: 'error',
+    message,
+  })
+}
+
+function killRun(taskId: string): void {
+  const run = runs.get(taskId)
+  if (!run) return
+  try {
+    run.child.kill()
+  } catch {
+    // already dead
+  }
+  runs.delete(taskId)
+}
+
+function processLine(taskId: string, promptId: number, line: string): void {
+  if (!line) return
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(line)
+  } catch {
+    emitError(taskId, promptId, `[non-json line] ${line.slice(0, 200)}`)
+    return
+  }
+
+  const type = parsed.type as string | undefined
+  if (type === 'session' && typeof parsed.id === 'string') {
+    const run = runs.get(taskId)
+    if (run) {
+      run.sessionId = parsed.id
+      saveSessionId(taskId, parsed.id)
+    }
+  }
+
+  sendAgentOutput({ taskId, promptId, raw: parsed })
+}
+
+function handleStdout(taskId: string, promptId: number, chunk: Buffer): void {
+  const run = runs.get(taskId)
+  if (!run) return
+  run.buffer += chunk.toString('utf-8')
+  let newlineIndex = run.buffer.indexOf('\n')
+  while (newlineIndex !== -1) {
+    const line = run.buffer.slice(0, newlineIndex).replace(/\r$/, '')
+    run.buffer = run.buffer.slice(newlineIndex + 1)
+    processLine(taskId, promptId, line)
+    newlineIndex = run.buffer.indexOf('\n')
+  }
+}
+
+function handleStderr(taskId: string, promptId: number, chunk: Buffer): void {
+  const message = chunk.toString('utf-8').trimEnd()
+  if (message) {
+    emitError(taskId, promptId, `[omp stderr] ${message}`)
+  }
 }
 
 export function registerTerminalHandlers(): void {
   ipcMain.handle(
-    'terminal:spawn',
-    (_event: unknown, input: TerminalSpawnInput): { pid: number | null; agentStatus: 'idle' | 'running' | 'error' } => {
-      const { taskId, projectPath } = input
+    'agent:prompt',
+    (_event: unknown, input: AgentPromptInput): { promptId: number; sessionId: string | null } => {
+      const { taskId, projectPath, prompt } = input
 
-      if (activeSessions.has(taskId)) {
-        killSession(taskId)
+      if (runs.has(taskId)) {
+        killRun(taskId)
       }
 
+      const promptId = nextPromptId++
+      const sessionId = loadSessionId(taskId)
       const ompPath = resolveOmpBinary()
       const cwd = projectPath && existsSync(projectPath) ? projectPath : process.cwd()
 
+      // First prompt: no session yet, let omp create one (we capture its id from the
+      // `session` event). Subsequent prompts: --resume <id> to continue conversation.
+      const args: string[] = ['--mode=json']
+      if (sessionId) {
+        args.push('--resume', sessionId)
+      }
+      args.push('-p', prompt)
+
       try {
-        const ptyProcess = pty.spawn(ompPath, [], {
-          name: 'xterm-256color',
-          cols: 100,
-          rows: 30,
+        const child = spawn(ompPath, args, {
           cwd,
+          windowsHide: true,
           env: {
             ...process.env,
-            TERM: 'xterm-256color',
             OMP_TASK_ID: taskId,
             OMP_PROJECT_PATH: cwd,
             OMP_SESSION_PER_TASK: '1',
           } as Record<string, string>,
         })
 
-        const session: AgentSession = {
-          pty: ptyProcess,
-          pid: ptyProcess.pid,
+        const run: AgentRun = {
           taskId,
-          projectPath: cwd,
-          agentStatus: 'running',
-          exited: false,
+          sessionId,
+          promptId,
+          child,
+          status: 'running',
+          buffer: '',
         }
-        activeSessions.set(taskId, session)
+        runs.set(taskId, run)
 
         sendAgentStatus(taskId, 'running')
+        sendAgentOutput({ taskId, promptId, type: 'prompt', prompt })
 
-        ptyProcess.onData((chunk: string) => {
-          sendToRenderer(taskId, chunk)
+        child.stdout.on('data', (chunk) => handleStdout(taskId, promptId, chunk))
+        child.stderr.on('data', (chunk) => handleStderr(taskId, promptId, chunk))
+
+        child.on('error', (err) => {
+          emitError(taskId, promptId, `[spawn error] ${err.message}`)
         })
 
-        ptyProcess.onExit(({ exitCode, signal }) => {
-          const sess = activeSessions.get(taskId)
-          if (sess) sess.exited = true
-          const finalStatus: 'completed' | 'error' = exitCode === 0 ? 'completed' : 'error'
-          sendToRenderer(taskId, `\r\n\x1b[33m[OMP session ended: code=${exitCode} signal=${signal ?? 'none'}]\x1b[0m\r\n`)
+        child.on('close', (code, signal) => {
+          const current = runs.get(taskId)
+          if (current && current.buffer.trim().length > 0) {
+            processLine(taskId, promptId, current.buffer.trim())
+            current.buffer = ''
+          }
+          const finalStatus: AgentStatus = code === 0 ? 'completed' : 'error'
+          sendAgentOutput({
+            taskId,
+            promptId,
+            type: 'closed',
+            exitCode: code,
+            signal,
+          })
           sendAgentStatus(taskId, finalStatus)
-          activeSessions.delete(taskId)
+          runs.delete(taskId)
         })
 
-        return { pid: ptyProcess.pid, agentStatus: 'running' }
+        return { promptId, sessionId }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
-        sendToRenderer(taskId, `\r\n\x1b[31m[Failed to spawn omp: ${message}]\x1b[0m\r\n`)
+        emitError(taskId, promptId, `[failed to spawn omp] ${message}`)
         sendAgentStatus(taskId, 'error')
-        return { pid: null, agentStatus: 'error' }
+        return { promptId, sessionId: null }
       }
     },
   )
 
-  ipcMain.handle('terminal:input', (_event: unknown, input: TerminalInput): void => {
-    const session = activeSessions.get(input.taskId)
-    if (session && !session.exited) {
-      session.pty.write(input.input)
+  ipcMain.handle('agent:kill', (_event: unknown, taskId: string): void => {
+    killRun(taskId)
+    sendAgentStatus(taskId, 'idle')
+  })
+
+  ipcMain.handle('agent:status', (_event: unknown, taskId: string): AgentStatus => {
+    return runs.get(taskId)?.status ?? 'idle'
+  })
+
+  ipcMain.handle('agent:reset', (_event: unknown, taskId: string): void => {
+    try {
+      const db = getDatabase()
+      db.prepare('UPDATE tasks SET agent_session_id = NULL, updated_at = ? WHERE id = ?').run(
+        Date.now(),
+        taskId,
+      )
+    } catch (err) {
+      console.error('[agent] failed to reset session id', err)
     }
-  })
-
-  ipcMain.handle('terminal:resize', (_event: unknown, input: TerminalResizeInput): void => {
-    const session = activeSessions.get(input.taskId)
-    if (session && !session.exited) {
-      try {
-        session.pty.resize(input.cols, input.rows)
-      } catch {
-        // ignore resize errors
-      }
-    }
-  })
-
-  ipcMain.handle('terminal:kill', (_event: unknown, input: TerminalKillInput): void => {
-    killSession(input.taskId)
-    sendAgentStatus(input.taskId, 'idle')
-  })
-
-  ipcMain.handle('terminal:status', (_event: unknown, taskId: string): 'idle' | 'running' | 'completed' | 'error' => {
-    const session = activeSessions.get(taskId)
-    return session ? session.agentStatus : 'idle'
+    killRun(taskId)
+    sendAgentStatus(taskId, 'idle')
   })
 }
 
 export function shutdownAllSessions(): void {
-  for (const taskId of Array.from(activeSessions.keys())) {
-    killSession(taskId)
+  for (const taskId of Array.from(runs.keys())) {
+    killRun(taskId)
   }
 }

@@ -229,7 +229,7 @@ export function Board(): React.ReactElement {
                   onAddTask={() => handleAddTask(col.id)}
                   onEditTask={handleEditTask}
                   onDeleteTask={deleteTask}
-                  onOpenTerminal={(task) => openPanel(task.id)}
+                  onOpenChat={(task) => openPanel(task.id)}
                   onDeleteColumn={deleteColumn}
                 />
               ))}
@@ -240,7 +240,7 @@ export function Board(): React.ReactElement {
                   task={activeTask}
                   onEdit={() => {}}
                   onDelete={() => {}}
-                  onOpenTerminal={() => {}}
+                  onOpenChat={() => {}}
                 />
               ) : activeColumn ? (
                 <div className="flex w-72 shrink-0 scale-105 flex-col gap-3 rounded-2xl border border-primary/20 bg-background/60 p-4 opacity-95 shadow-xl backdrop-blur-xl transition-transform">
