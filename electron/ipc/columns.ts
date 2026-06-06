@@ -105,6 +105,28 @@ export function registerColumnHandlers(): void {
     },
   )
 
+
+  ipcMain.handle(
+    'column:reorder',
+    (_event: unknown, items: { id: string; order: number }[]): void => {
+      console.log('[column:reorder] Reordering', items.length, 'columns')
+      const db = getDatabase()
+      try {
+        const stmt = db.prepare('UPDATE columns SET "order" = ?, updated_at = ? WHERE id = ?')
+        const now = Date.now()
+        const txn = db.transaction((rows: { id: string; order: number }[]) => {
+          for (const row of rows) {
+            stmt.run(row.order, now, row.id)
+          }
+        })
+        txn(items)
+        console.log('[column:reorder] Success')
+      } catch (err) {
+        console.error('[column:reorder] Failed:', err)
+        throw err
+      }
+    },
+  )
   ipcMain.handle('column:delete', (_event: unknown, id: string): void => {
     console.log('[column:delete] Deleting column:', id)
     const db = getDatabase()

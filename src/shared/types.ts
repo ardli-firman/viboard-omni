@@ -28,6 +28,13 @@ export interface Task {
   updatedAt: number
 }
 
+export interface RegisteredProject {
+  path: string
+  name: string
+  addedAt: number
+  lastOpenedAt: number
+}
+
 export interface TerminalOutput {
   taskId: string
   data: string

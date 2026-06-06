@@ -1,19 +1,23 @@
 import { create } from 'zustand'
-import type { Column, Task, AgentType, AgentStatus } from '@shared/types'
+import type { Column, Task, AgentType, AgentStatus, RegisteredProject } from '@shared/types'
 
 interface ProjectState {
+  projects: RegisteredProject[]
   currentProject: string | null
   columns: Column[]
   tasks: Task[]
   loading: boolean
-  initialized: boolean
-  selectProject: () => Promise<string | null>
+  projectsLoaded: boolean
+  loadProjects: () => Promise<void>
+  addProject: () => Promise<string | null>
+  removeProject: (path: string) => Promise<void>
   openProject: (path: string) => Promise<void>
   closeProject: () => void
   loadData: (projectPath: string) => Promise<void>
   addColumn: (title: string, color?: string) => Promise<void>
   updateColumn: (id: string, data: { title?: string; color?: string }) => Promise<void>
   deleteColumn: (id: string) => Promise<void>
+  reorderColumns: (items: { id: string; order: number }[]) => void
   addTask: (data: { title: string; description: string; columnId: string; tags: string[] }) => Promise<void>
   updateTask: (id: string, data: Partial<Omit<Task, 'id' | 'createdAt' | 'updatedAt'>>) => Promise<void>
   deleteTask: (id: string) => Promise<void>
@@ -22,18 +26,50 @@ interface ProjectState {
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
+  projects: [],
   currentProject: null,
   columns: [],
   tasks: [],
   loading: false,
-  initialized: false,
+  projectsLoaded: false,
 
-  selectProject: async () => {
-    const path = await window.electronAPI.selectProjectFolder()
-    if (path) {
-      await get().openProject(path)
+  loadProjects: async () => {
+    try {
+      const projects = await window.electronAPI.listProjects()
+      set({ projects, projectsLoaded: true })
+    } catch (err) {
+      console.error('Failed to load projects:', err)
+      set({ projectsLoaded: true })
     }
-    return path
+  },
+
+  addProject: async () => {
+    const result = await window.electronAPI.addProject()
+    if (!result) return null
+    set((s) => {
+      const existing = s.projects.find((p) => p.path === result.path)
+      return {
+        projects: existing
+          ? s.projects.map((p) => (p.path === result.path ? result : p))
+          : [result, ...s.projects],
+      }
+    })
+    await get().openProject(result.path)
+    return result.path
+  },
+
+  removeProject: async (path) => {
+    await window.electronAPI.removeProject(path)
+    set((s) => {
+      const next = s.projects.filter((p) => p.path !== path)
+      const close = s.currentProject === path
+      return {
+        projects: next,
+        currentProject: close ? null : s.currentProject,
+        columns: close ? [] : s.columns,
+        tasks: close ? [] : s.tasks,
+      }
+    })
   },
 
   openProject: async (path) => {
@@ -41,9 +77,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       currentProject: path,
       columns: [],
       tasks: [],
-      initialized: false,
       loading: true,
     })
+    window.electronAPI.touchProject(path)
     await get().loadData(path)
   },
 
@@ -52,7 +88,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       currentProject: null,
       columns: [],
       tasks: [],
-      initialized: false,
       loading: false,
     })
   },
@@ -64,7 +99,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         window.electronAPI.getColumns(projectPath),
         window.electronAPI.getTasks(projectPath),
       ])
-      set({ columns, tasks, loading: false, initialized: true })
+      set({ columns, tasks, loading: false })
     } catch (err) {
       console.error('Failed to load data:', err)
       set({ loading: false })
@@ -74,20 +109,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   addColumn: async (title, color) => {
     const projectPath = get().currentProject
     if (!projectPath) throw new Error('No project open')
-    const log = window.electronAPI?.log ?? { info: (..._a: unknown[]): void => {}, error: (..._a: unknown[]): void => {}, warn: (..._a: unknown[]): void => {} }
-    log.info('[addColumn] Creating:', title, 'in', projectPath)
     try {
       const order = get().columns.length
-      const column = await window.electronAPI.createColumn({
-        title,
-        order,
-        color,
-        projectPath,
-      })
+      const column = await window.electronAPI.createColumn({ title, order, color, projectPath })
       set((s) => ({ columns: [...s.columns, column] }))
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      log.error('[addColumn] Error:', msg)
+      console.error('[addColumn] Error:', err)
       throw err
     }
   },
@@ -97,6 +124,19 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set((s) => ({ columns: s.columns.map((c) => (c.id === id ? updated : c)) }))
   },
 
+
+  reorderColumns: (items) => {
+    set((s) => ({
+      columns: items
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .map((item) => s.columns.find((c) => c.id === item.id)!)
+        .filter(Boolean),
+    }))
+    window.electronAPI.reorderColumns(items).catch((err) => {
+      console.error('Failed to persist column reorder:', err)
+    })
+  },
   deleteColumn: async (id) => {
     await window.electronAPI.deleteColumn(id)
     set((s) => ({

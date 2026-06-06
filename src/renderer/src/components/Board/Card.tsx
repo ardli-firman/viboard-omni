@@ -21,7 +21,10 @@ const statusColors: Record<string, string> = {
 }
 
 export function KanbanCard({ task, onEdit, onDelete, onOpenTerminal }: KanbanCardProps): React.ReactElement {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: task.id,
+    data: { type: 'task' as const },
+  })
 
   const style = {
     transform: CSS.Transform.toString(transform),

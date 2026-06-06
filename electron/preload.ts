@@ -1,7 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Column, Task, ThemeMode } from '../src/shared/types'
+import type { Column, Task, ThemeMode, RegisteredProject } from '../src/shared/types'
 
 const api = {
+  // Project list
+  listProjects: (): Promise<RegisteredProject[]> => ipcRenderer.invoke('project:list'),
+  addProject: (): Promise<RegisteredProject | null> => ipcRenderer.invoke('project:add'),
+  removeProject: (path: string): Promise<boolean> => ipcRenderer.invoke('project:remove', path),
+  touchProject: (path: string): Promise<void> => ipcRenderer.invoke('project:touch', path),
+
+  // Folder picker (not auto-registered)
   selectProjectFolder: (): Promise<string | null> => ipcRenderer.invoke('project:selectFolder'),
 
   getColumns: (projectPath?: string): Promise<Column[]> => ipcRenderer.invoke('column:list', projectPath),
@@ -10,6 +17,8 @@ const api = {
   updateColumn: (id: string, data: { title?: string; order?: number; color?: string }): Promise<Column> =>
     ipcRenderer.invoke('column:update', id, data),
   deleteColumn: (id: string): Promise<void> => ipcRenderer.invoke('column:delete', id),
+  reorderColumns: (items: { id: string; order: number }[]): Promise<void> =>
+    ipcRenderer.invoke('column:reorder', items),
 
   getTasks: (projectPath?: string): Promise<Task[]> => ipcRenderer.invoke('task:list', projectPath),
   createTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task> =>
