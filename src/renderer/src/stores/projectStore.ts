@@ -130,8 +130,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       columns: items
         .slice()
         .sort((a, b) => a.order - b.order)
-        .map((item) => s.columns.find((c) => c.id === item.id)!)
-        .filter(Boolean),
+        .map((item) => {
+          const col = s.columns.find((c) => c.id === item.id)
+          return col ? { ...col, order: item.order } : null
+        })
+        .filter((c): c is Column => c !== null),
     }))
     window.electronAPI.reorderColumns(items).catch((err) => {
       console.error('Failed to persist column reorder:', err)

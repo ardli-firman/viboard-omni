@@ -35,7 +35,6 @@ export function Board(): React.ReactElement {
     updateTask,
     deleteTask,
     deleteColumn,
-    moveTask,
     reorderColumns,
   } = useProjectStore()
   const { openPanel } = useTerminalStore()
@@ -138,10 +137,7 @@ export function Board(): React.ReactElement {
       return
     }
 
-    // Task reorder
-    setActiveId(null)
-    setActiveType(null)
-
+    // Task reorder — optimistic update: sync state first, persist in background.
     const activeTask = tasks.find((t) => t.id === active.id)
     if (!activeTask) return
     let targetColId = over.id as string
@@ -149,12 +145,31 @@ export function Board(): React.ReactElement {
     if (overTask) {
       targetColId = overTask.columnId
     }
-    const targetTasks = tasks.filter((t) => t.columnId === targetColId && t.id !== active.id)
+    const targetTasks = tasks.filter((t) => t.columnId === targetColId && t.id !== active.id).sort((a, b) => a.order - b.order)
     const overIndex = overTask ? targetTasks.findIndex((t) => t.id === over.id) : targetTasks.length
     targetTasks.splice(overIndex < 0 ? targetTasks.length : overIndex, 0, activeTask)
+
+    // Build updated order map and apply synchronously so dnd-kit sees new order immediately.
+    const orderMap: Record<string, { columnId: string; order: number }> = {}
     for (const [i, t] of targetTasks.entries()) {
-      moveTask(t.id, targetColId, i)
+      orderMap[t.id] = { columnId: targetColId, order: i }
     }
+    useProjectStore.setState((s) => ({
+      tasks: s.tasks.map((t) => {
+        const update = orderMap[t.id]
+        return update ? { ...t, columnId: update.columnId, order: update.order } : t
+      }),
+    }))
+
+    // Persist in background.
+    for (const [i, t] of targetTasks.entries()) {
+      window.electronAPI.moveTask(t.id, targetColId, i).catch((err) => {
+        console.error('Failed to persist task reorder:', err)
+      })
+    }
+
+    setActiveId(null)
+    setActiveType(null)
   }
 
   function handleAddTask(columnId: string): void {
