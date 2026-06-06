@@ -102,7 +102,10 @@ function MessageBubble({ message }: { message: AgentMessage }): React.ReactEleme
         ) : (
           <div className="flex w-full flex-col gap-2 rounded-2xl rounded-bl-sm bg-muted/50 px-4 py-2.5 text-sm">
             {message.blocks.length === 0 && !message.done && (
-              <span className="text-muted-foreground">omp is starting…</span>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <span className="h-3 w-1.5 animate-pulse bg-foreground/50" />
+                <span className="text-[12px] italic">Agent is processing...</span>
+              </div>
             )}
             {message.blocks.length === 0 && message.done && !message.errorText && (
               <span className="text-muted-foreground italic text-[12px]">(empty response)</span>
