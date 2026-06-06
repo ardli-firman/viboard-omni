@@ -7,6 +7,7 @@ import { registerTaskHandlers } from './ipc/tasks'
 import { registerTerminalHandlers } from './ipc/terminal'
 import { registerThemeHandlers } from './ipc/theme'
 import { registerLogHandlers } from './ipc/log'
+import { registerFileHandlers } from './ipc/files'
 import { registerProjectHandlers } from './ipc/project'
 
 let mainWindow: BrowserWindow | null = null
@@ -46,9 +47,8 @@ app.whenReady().then(() => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
-
-  initDatabase()
   registerProjectHandlers()
+  registerFileHandlers()
   registerColumnHandlers()
   registerTaskHandlers()
   registerTerminalHandlers()

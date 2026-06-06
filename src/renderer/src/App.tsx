@@ -4,6 +4,7 @@ import { Board } from './components/Board/Board'
 import { TerminalPanel } from './components/Terminal/TerminalPanel'
 import { Header } from './components/Layout/Header'
 import { Sidebar } from './components/Layout/Sidebar'
+import { ExplorerPanel } from './components/FileExplorer/ExplorerPanel'
 import { ProjectPicker } from './components/ProjectPicker/ProjectPicker'
 import { useThemeStore } from './stores/themeStore'
 import { useTerminalStore } from './stores/terminalStore'
@@ -32,6 +33,7 @@ function App(): React.ReactElement {
                 </div>
                 {panelOpen && activeTaskId && <TerminalPanel taskId={activeTaskId} />}
               </div>
+              <ExplorerPanel />
             </div>
           ) : (
             <ProjectPicker />

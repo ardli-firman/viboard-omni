@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { Column, Task, ThemeMode, RegisteredProject } from '../src/shared/types'
+import type { FileEntry, FileTreeItem } from './ipc/files'
 
 const api = {
   // Project list
@@ -10,6 +11,16 @@ const api = {
 
   // Folder picker (not auto-registered)
   selectProjectFolder: (): Promise<string | null> => ipcRenderer.invoke('project:selectFolder'),
+
+  // File operations
+  listDir: (dirPath: string): Promise<FileEntry[]> =>
+    ipcRenderer.invoke('file:listDir', dirPath),
+  readFile: (filePath: string): Promise<string | null> =>
+    ipcRenderer.invoke('file:readFile', filePath),
+  getFileTree: (dirPath: string): Promise<FileTreeItem[]> =>
+    ipcRenderer.invoke('file:getTree', dirPath),
+  statFile: (filePath: string): Promise<FileEntry | null> =>
+    ipcRenderer.invoke('file:stat', filePath),
 
   getColumns: (projectPath?: string): Promise<Column[]> => ipcRenderer.invoke('column:list', projectPath),
   createColumn: (data: { title: string; order: number; color?: string; projectPath?: string }): Promise<Column> =>
