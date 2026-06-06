@@ -6,8 +6,9 @@ import {
   nextMessageId,
 } from '../../stores/terminalStore'
 import { useProjectStore } from '../../stores/projectStore'
+import { useFileExplorerStore } from '../../stores/fileExplorerStore'
 import { Button } from '../ui/button'
-import { X, Send, Square, RotateCcw, User, Bot, ChevronDown, ChevronRight, Wrench, AlertCircle } from 'lucide-react'
+import { X, Send, Square, RotateCcw, User, Bot, ChevronDown, ChevronRight, Wrench, AlertCircle, FileCode, GitCompare } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -55,6 +56,80 @@ function ToolBlock({ block }: { block: Extract<AgentBlock, { kind: 'tool' }> }):
     running: 'text-blue-500',
     done: 'text-green-500',
     error: 'text-red-500',
+  }
+
+  let isFileEdit = false
+  let targetFile = ''
+  
+  if (['edit', 'write', 'multi_replace_file_content', 'write_to_file', 'replace_file_content'].includes(block.name)) {
+    try {
+      const args = JSON.parse(block.input)
+      let parsedPath = args.path || args.TargetFile || args.file || args.Target || ''
+      if (!parsedPath && args.input && typeof args.input === 'string') {
+        const match = args.input.match(/^¶([^#\n]+)/)
+        if (match) {
+          parsedPath = match[1]
+        }
+      }
+      targetFile = parsedPath
+      if (targetFile) isFileEdit = true
+    } catch {
+      // ignore
+    }
+  }
+
+  if (isFileEdit) {
+    const filename = targetFile.split(/[/\\]/).pop() || targetFile
+    return (
+      <div className="rounded-md border border-border/40 bg-background/40">
+        <div className="flex w-full items-center gap-3 px-3 py-2 text-[12px]">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <span className="font-medium text-foreground">1 file changed</span>
+          </div>
+          
+          <div className="ml-auto flex items-center gap-2">
+            <span className={`text-[11px] font-medium ${statusClass[block.status]}`}>
+              {statusLabel[block.status]}
+            </span>
+            <button
+              onClick={() => {
+                if (!open && task?.projectPath) {
+                  const store = useFileExplorerStore.getState()
+                  const absolutePath = `${task.projectPath}/${targetFile}`.replace(/\\/g, '/')
+                  store.openFile(absolutePath, filename, targetFile).then(() => {
+                    store.toggleDiffMode(absolutePath)
+                  })
+                }
+                setOpen((v) => !v)
+              }}
+              className="flex h-6 items-center gap-1 rounded bg-muted/50 px-2 text-[11px] font-medium transition-colors hover:bg-muted"
+            >
+              <GitCompare className="h-3 w-3" />
+              {open ? 'Hide Details' : 'Review'}
+            </button>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2 border-t border-border/20 bg-muted/10 px-3 py-1.5 text-[11px] text-muted-foreground">
+          <FileCode className="h-3.5 w-3.5 text-blue-500" />
+          <span className="font-mono text-foreground/80">{filename}</span>
+          <span className="truncate opacity-50">{targetFile}</span>
+        </div>
+
+        {open && (
+          <div className="space-y-2 border-t border-border/30 px-3 py-2 text-[11px] font-mono text-muted-foreground">
+            {block.input && (
+              <pre className="max-h-32 overflow-auto whitespace-pre-wrap">{block.input}</pre>
+            )}
+            {block.output && (
+              <pre className="max-h-40 overflow-auto whitespace-pre-wrap border-t border-border/20 pt-2">
+                {block.output}
+              </pre>
+            )}
+          </div>
+        )}
+      </div>
+    )
   }
   return (
     <div className="rounded-md border border-border/40 bg-background/40">

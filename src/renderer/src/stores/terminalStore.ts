@@ -112,8 +112,7 @@ export const useTerminalStore = create<AgentChatState>()(
       }
 
       if (type === 'message_start') {
-        message.blocks = []
-        return { threads: { ...s.threads, [taskId]: list } }
+        return s
       }
 
       if (type === 'message_update') {

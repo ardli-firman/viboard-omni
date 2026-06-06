@@ -34,6 +34,8 @@ export interface OpenFile {
   error: string | null
   dirty: boolean
   isImage: boolean
+  diffMode: boolean
+  originalContent: string | null
 }
 
 interface FileExplorerState {
@@ -41,13 +43,16 @@ interface FileExplorerState {
   treeLoading: boolean
   treeError: string | null
   expandedPaths: Set<string>
+  gitStatus: Record<string, string>
   openFiles: OpenFile[]
   activeFilePath: string | null
   panelOpen: boolean
   rootPath: string | null
   panelWidth: number
   loadTree: (rootPath: string) => Promise<void>
+  refreshGitStatus: () => Promise<void>
   toggleExpand: (path: string) => void
+  toggleDiffMode: (path: string) => Promise<void>
   openFile: (path: string, name: string, relativePath: string) => Promise<void>
   closeFile: (path: string) => void
   setActiveFile: (path: string | null) => void
@@ -64,6 +69,7 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   treeLoading: false,
   treeError: null,
   expandedPaths: new Set<string>(),
+  gitStatus: {},
   openFiles: [],
   activeFilePath: null,
   panelOpen: true,
@@ -75,10 +81,22 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
     try {
       const tree = await window.electronAPI.getFileTree(rootPath)
       set({ tree, treeLoading: false })
+      await get().refreshGitStatus()
     } catch (err) {
       console.error('[fileExplorer] Failed to load tree:', err)
       set({ treeLoading: false, treeError: String(err) })
       toast.error('Failed to load project files')
+    }
+  },
+
+  refreshGitStatus: async () => {
+    const { rootPath } = get()
+    if (!rootPath) return
+    try {
+      const status = await window.electronAPI.getGitStatus(rootPath)
+      set({ gitStatus: status })
+    } catch (err) {
+      // Ignored
     }
   },
 
@@ -113,6 +131,8 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
       error: null,
       dirty: false,
       isImage,
+      diffMode: false,
+      originalContent: null,
     }
 
     set({
@@ -177,6 +197,41 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
       }
       return { openFiles: remaining, activeFilePath: nextActive }
     })
+  },
+
+  toggleDiffMode: async (path: string) => {
+    const state = get()
+    const file = state.openFiles.find((f) => f.path === path)
+    if (!file) return
+
+    if (file.diffMode) {
+      set((s) => ({
+        openFiles: s.openFiles.map((f) => (f.path === path ? { ...f, diffMode: false } : f)),
+      }))
+      return
+    }
+
+    // Entering diff mode, need originalContent
+    if (file.originalContent !== null) {
+      set((s) => ({
+        openFiles: s.openFiles.map((f) => (f.path === path ? { ...f, diffMode: true } : f)),
+      }))
+      return
+    }
+
+    try {
+      if (!state.rootPath) return
+      const orig = await window.electronAPI.getGitHeadContent(state.rootPath, file.relativePath)
+      const currentContent = await window.electronAPI.readFile(file.path)
+      
+      set((s) => ({
+        openFiles: s.openFiles.map((f) =>
+          f.path === path ? { ...f, diffMode: true, originalContent: orig ?? '', content: currentContent ?? f.content } : f,
+        ),
+      }))
+    } catch (err) {
+      toast.error('Failed to load diff content')
+    }
   },
 
   setActiveFile: (path) => {

@@ -11,12 +11,19 @@ function TreeNode({ item, depth }: { item: FileTreeItem; depth: number }): React
   const openFiles = useFileExplorerStore((s) => s.openFiles)
   const toggleExpand = useFileExplorerStore((s) => s.toggleExpand)
   const openFile = useFileExplorerStore((s) => s.openFile)
+  const gitStatus = useFileExplorerStore((s) => s.gitStatus)
 
   const isExpanded = expandedPaths.has(item.path)
   const isActive = activeFilePath === item.path
   const isOpen = openFiles.some((f) => f.path === item.path)
+  
+  const status = gitStatus[item.relativePath]
+  const isModified = status?.includes('M')
+  const isAdded = status?.includes('A') || status?.includes('?')
+
   const Icon = getFileIcon(item.name, item.extension, item.isDirectory, isExpanded)
   const iconColor = item.isDirectory ? 'text-sky-400' : getFileIconColor(item.extension)
+  const textColor = isModified ? 'text-[#e2c08d]' : isAdded ? 'text-[#73c991]' : isActive ? 'text-accent-foreground' : 'text-foreground'
 
   // Indent: each level = 14px (icon column at fixed offset, name follows)
   const baseIndent = 8
@@ -38,9 +45,9 @@ function TreeNode({ item, depth }: { item: FileTreeItem; depth: number }): React
         onClick={handleClick}
         className={`group relative flex h-[22px] w-full items-center pr-2 text-left text-[13px] leading-[22px] transition-colors ${
           isActive
-            ? 'bg-accent text-accent-foreground'
-            : 'text-foreground hover:bg-accent/50'
-        }`}
+            ? 'bg-accent'
+            : 'hover:bg-accent/50'
+        } ${textColor}`}
         style={{ paddingLeft: nameLeft }}
         title={item.relativePath}
       >
@@ -59,7 +66,12 @@ function TreeNode({ item, depth }: { item: FileTreeItem; depth: number }): React
         )}
         <Icon className={`h-[15px] w-[15px] shrink-0 ${iconColor}`} />
         <span className="ml-1.5 truncate">{item.name}</span>
-        {isOpen && !item.isDirectory && (
+        {status && !item.isDirectory && (
+          <span className={`ml-auto text-[10px] font-bold ${isModified ? 'text-[#e2c08d]' : 'text-[#73c991]'}`}>
+            {isModified ? 'M' : isAdded ? 'U' : ''}
+          </span>
+        )}
+        {isOpen && !item.isDirectory && !status && (
           <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary/70" />
         )}
       </button>

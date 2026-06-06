@@ -1,5 +1,5 @@
 import { type ReactElement, useRef, useCallback } from 'react'
-import Editor, { loader, type OnMount } from '@monaco-editor/react'
+import { Editor, DiffEditor, loader, type OnMount } from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
 import type { OpenFile } from '../../stores/fileExplorerStore'
 import { useThemeStore } from '../../stores/themeStore'
@@ -128,6 +128,35 @@ export function FileEditor({ file }: FileEditorProps): ReactElement {
   }
 
   const language = getMonacoLanguage(file.name)
+
+  if (file.diffMode && file.originalContent !== null) {
+    return (
+      <div className="flex-1 overflow-hidden">
+        <DiffEditor
+          height="100%"
+          language={language}
+          original={file.originalContent}
+          modified={file.content ?? ''}
+          theme={monacoTheme}
+          options={{
+            fontSize: 13,
+            fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+            fontLigatures: true,
+            minimap: { enabled: true },
+            readOnly: true,
+            lineNumbers: 'on',
+            scrollBeyondLastLine: false,
+            wordWrap: 'off',
+            renderWhitespace: 'selection',
+            automaticLayout: true,
+            padding: { top: 8 },
+            renderSideBySide: true,
+            ignoreTrimWhitespace: false,
+          }}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="flex-1 overflow-hidden">

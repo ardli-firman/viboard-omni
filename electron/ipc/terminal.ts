@@ -20,7 +20,7 @@ interface AgentRun {
 }
 
 const runs = new Map<string, AgentRun>()
-let nextPromptId = 1
+let nextPromptId = Date.now()
 
 function recoverOmpSession(sessionId: string): void {
   const sessionsDir = path.join(os.homedir(), '.omp', 'agent', 'sessions')

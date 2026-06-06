@@ -9,6 +9,7 @@ import { registerThemeHandlers } from './ipc/theme'
 import { registerLogHandlers } from './ipc/log'
 import { registerFileHandlers } from './ipc/files'
 import { registerProjectHandlers } from './ipc/project'
+import { registerGitHandlers } from './ipc/git'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -53,6 +54,7 @@ app.whenReady().then(() => {
 
   registerProjectHandlers()
   registerFileHandlers()
+  registerGitHandlers()
   registerColumnHandlers()
   registerTaskHandlers()
   registerTerminalHandlers()

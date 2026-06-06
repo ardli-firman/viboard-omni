@@ -26,6 +26,11 @@ const api = {
   statFile: (filePath: string): Promise<FileEntry | null> =>
     ipcRenderer.invoke('file:stat', filePath),
 
+  getGitStatus: (dirPath: string): Promise<Record<string, string>> =>
+    ipcRenderer.invoke('git:getStatus', dirPath),
+  getGitHeadContent: (dirPath: string, filePath: string): Promise<string | null> =>
+    ipcRenderer.invoke('git:getHeadContent', dirPath, filePath),
+
   getColumns: (projectPath?: string): Promise<Column[]> => ipcRenderer.invoke('column:list', projectPath),
   createColumn: (data: { title: string; order: number; color?: string; projectPath?: string }): Promise<Column> =>
     ipcRenderer.invoke('column:create', data),
