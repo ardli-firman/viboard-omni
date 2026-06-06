@@ -1,0 +1,16 @@
+{
+  "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
+  "compilerOptions": {
+    "composite": true,
+    "types": ["electron-vite/node"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@electron/*": ["./electron/*"]
+    }
+  },
+  "include": [
+    "electron.vite.config.ts",
+    "src/renderer/src/env.d.ts",
+    "src/shared/**/*.ts"
+  ]
+}
