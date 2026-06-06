@@ -36,13 +36,18 @@ function rowToTask(row: TaskRow): Task {
 }
 
 export function registerTaskHandlers(): void {
-  ipcMain.handle('task:list', (): Task[] => {
+  ipcMain.handle('task:list', (_event: unknown, projectPath?: string): Task[] => {
     const db = getDatabase()
-    const rows = db
-      .prepare(
-        'SELECT id, title, description, column_id, "order", project_path, agent_type, agent_status, custom_agent_command, tags, created_at, updated_at FROM tasks ORDER BY "order" ASC',
-      )
-      .all() as TaskRow[]
+    let rows: TaskRow[]
+    if (projectPath) {
+      rows = db
+        .prepare('SELECT id, title, description, column_id, "order", project_path, agent_type, agent_status, custom_agent_command, tags, created_at, updated_at FROM tasks WHERE project_path = ? ORDER BY "order" ASC')
+        .all(projectPath) as TaskRow[]
+    } else {
+      rows = db
+        .prepare('SELECT id, title, description, column_id, "order", project_path, agent_type, agent_status, custom_agent_command, tags, created_at, updated_at FROM tasks ORDER BY "order" ASC')
+        .all() as TaskRow[]
+    }
     return rows.map(rowToTask)
   })
 

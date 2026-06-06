@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import type { Task } from '@shared/types'
 import { KanbanColumn } from './Column'
 import { TaskModal } from '../Modal/TaskModal'
@@ -23,7 +23,7 @@ import { ScrollArea, ScrollBar } from '../ui/scroll-area'
 import { Plus } from 'lucide-react'
 
 export function Board(): React.ReactElement {
-  const { columns, tasks, loadData, addColumn, addTask, updateTask, deleteTask, moveTask } = useProjectStore()
+  const { columns, tasks, addColumn, addTask, updateTask, deleteTask, moveTask } = useProjectStore()
   const { openPanel } = useTerminalStore()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
@@ -35,8 +35,6 @@ export function Board(): React.ReactElement {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
-
-  useEffect(() => { loadData() }, [loadData])
 
   function getTasksByColumn(columnId: string): Task[] {
     return tasks.filter((t) => t.columnId === columnId).sort((a, b) => a.order - b.order)
@@ -77,16 +75,14 @@ export function Board(): React.ReactElement {
     setTaskModalOpen(true)
   }
 
-  async function handleSaveTask(data: { title: string; description: string; projectPath: string; tags: string[] }): Promise<void> {
+  async function handleSaveTask(data: { title: string; description: string; tags: string[] }): Promise<void> {
     if (editingTask) {
-      await updateTask(editingTask.id, data)
+      await updateTask(editingTask.id, { title: data.title, description: data.description, tags: data.tags })
     } else {
       await addTask({
         title: data.title,
         description: data.description,
         columnId: taskColumnId,
-        projectPath: data.projectPath,
-        agentType: 'pi-agent',
         tags: data.tags,
       })
     }

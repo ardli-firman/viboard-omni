@@ -11,25 +11,25 @@ import {
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
+import { useProjectStore } from '../../stores/projectStore'
 
 interface TaskModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   task: Task | null
-  onSave: (data: { title: string; description: string; projectPath: string; tags: string[] }) => Promise<void>
+  onSave: (data: { title: string; description: string; tags: string[] }) => Promise<void>
 }
 
 export function TaskModal({ open, onOpenChange, task, onSave }: TaskModalProps): React.ReactElement {
+  const { currentProject } = useProjectStore()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [projectPath, setProjectPath] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (open) {
       setTitle(task?.title ?? '')
       setDescription(task?.description ?? '')
-      setProjectPath(task?.projectPath ?? '')
     }
   }, [open, task])
 
@@ -39,7 +39,7 @@ export function TaskModal({ open, onOpenChange, task, onSave }: TaskModalProps):
     if (!isValid || saving) return
     setSaving(true)
     try {
-      await onSave({ title: title.trim(), description: description.trim(), projectPath: projectPath.trim(), tags: [] })
+      await onSave({ title: title.trim(), description: description.trim(), tags: [] })
       onOpenChange(false)
     } finally {
       setSaving(false)
@@ -74,14 +74,11 @@ export function TaskModal({ open, onOpenChange, task, onSave }: TaskModalProps):
               rows={3}
             />
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Project Path</label>
-            <Input
-              value={projectPath}
-              onChange={(e) => setProjectPath(e.target.value)}
-              placeholder="e.g. /path/to/project"
-            />
-          </div>
+          {currentProject && (
+            <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              Project: <span className="font-medium text-foreground">{currentProject}</span>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

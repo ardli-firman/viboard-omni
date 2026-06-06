@@ -2,14 +2,16 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { Column, Task, ThemeMode } from '../src/shared/types'
 
 const api = {
-  getColumns: (): Promise<Column[]> => ipcRenderer.invoke('column:list'),
-  createColumn: (data: { title: string; order: number; color?: string }): Promise<Column> =>
+  selectProjectFolder: (): Promise<string | null> => ipcRenderer.invoke('project:selectFolder'),
+
+  getColumns: (projectPath?: string): Promise<Column[]> => ipcRenderer.invoke('column:list', projectPath),
+  createColumn: (data: { title: string; order: number; color?: string; projectPath?: string }): Promise<Column> =>
     ipcRenderer.invoke('column:create', data),
   updateColumn: (id: string, data: { title?: string; order?: number; color?: string }): Promise<Column> =>
     ipcRenderer.invoke('column:update', id, data),
   deleteColumn: (id: string): Promise<void> => ipcRenderer.invoke('column:delete', id),
 
-  getTasks: (): Promise<Task[]> => ipcRenderer.invoke('task:list'),
+  getTasks: (projectPath?: string): Promise<Task[]> => ipcRenderer.invoke('task:list', projectPath),
   createTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task> =>
     ipcRenderer.invoke('task:create', data),
   updateTask: (id: string, data: Partial<Omit<Task, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Task> =>

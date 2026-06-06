@@ -7,6 +7,7 @@ import { registerTaskHandlers } from './ipc/tasks'
 import { registerTerminalHandlers } from './ipc/terminal'
 import { registerThemeHandlers } from './ipc/theme'
 import { registerLogHandlers } from './ipc/log'
+import { registerProjectHandlers } from './ipc/project'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -47,12 +48,12 @@ app.whenReady().then(() => {
   })
 
   initDatabase()
+  registerProjectHandlers()
   registerColumnHandlers()
   registerTaskHandlers()
   registerTerminalHandlers()
   registerThemeHandlers()
   registerLogHandlers()
-
   createWindow()
 
   app.on('activate', () => {

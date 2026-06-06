@@ -21,12 +21,20 @@ export function initDatabase(): Database.Database {
 }
 
 function migrateSchema(): void {
-  // Add updated_at to columns table for databases created before schema v2
+  // v2: Add updated_at to columns table
   try {
     db.exec('ALTER TABLE columns ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0')
     console.log('[db] Migration: added updated_at to columns table')
   } catch {
-    // Column already exists, no migration needed
+    // Column already exists
+  }
+
+  // v3: Add project_path to columns table
+  try {
+    db.exec('ALTER TABLE columns ADD COLUMN project_path TEXT NOT NULL DEFAULT \'\'')
+    console.log('[db] Migration: added project_path to columns table')
+  } catch {
+    // Column already exists
   }
 }
 
@@ -37,6 +45,7 @@ function createTables(): void {
       title TEXT NOT NULL,
       "order" INTEGER NOT NULL DEFAULT 0,
       color TEXT,
+      project_path TEXT NOT NULL DEFAULT '',
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );

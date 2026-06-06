@@ -8,6 +8,7 @@ interface ColumnRow {
   title: string
   order: number
   color: string | null
+  project_path: string | null
   created_at: number
   updated_at: number
 }
@@ -26,14 +27,19 @@ function rowToColumn(row: ColumnRow): Column {
 export function registerColumnHandlers(): void {
   console.log('[columns] Registering IPC handlers')
 
-  ipcMain.handle('column:list', (): Column[] => {
-    console.log('[column:list] Loading columns')
+  ipcMain.handle('column:list', (_event: unknown, projectPath?: string): Column[] => {
+    console.log('[column:list] Loading columns for path:', projectPath)
     const db = getDatabase()
-    const rows = db
-      .prepare(
-        'SELECT id, title, "order", color, created_at, updated_at FROM columns ORDER BY "order" ASC',
-      )
-      .all() as ColumnRow[]
+    let rows: ColumnRow[]
+    if (projectPath) {
+      rows = db
+        .prepare('SELECT id, title, "order", color, project_path, created_at, updated_at FROM columns WHERE project_path = ? ORDER BY "order" ASC')
+        .all(projectPath) as ColumnRow[]
+    } else {
+      rows = db
+        .prepare('SELECT id, title, "order", color, project_path, created_at, updated_at FROM columns ORDER BY "order" ASC')
+        .all() as ColumnRow[]
+    }
     const result = rows.map(rowToColumn)
     console.log('[column:list] Loaded', result.length, 'columns')
     return result
@@ -41,15 +47,15 @@ export function registerColumnHandlers(): void {
 
   ipcMain.handle(
     'column:create',
-    (_event: unknown, data: { title: string; order: number; color?: string }): Column => {
-      console.log('[column:create] Creating column:', data.title, 'order:', data.order)
+    (_event: unknown, data: { title: string; order: number; color?: string; projectPath?: string }): Column => {
+      console.log('[column:create] Creating column:', data.title, 'order:', data.order, 'project:', data.projectPath)
       const db = getDatabase()
       const id = uuid()
       const now = Date.now()
       try {
         db.prepare(
-          'INSERT INTO columns (id, title, "order", color, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-        ).run(id, data.title, data.order, data.color ?? null, now, now)
+          'INSERT INTO columns (id, title, "order", color, project_path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        ).run(id, data.title, data.order, data.color ?? null, data.projectPath ?? '', now, now)
         const result = {
           id,
           title: data.title,
