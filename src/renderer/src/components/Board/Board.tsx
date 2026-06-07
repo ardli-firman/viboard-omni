@@ -21,6 +21,7 @@ import {
   SortableContext,
   horizontalListSortingStrategy,
   sortableKeyboardCoordinates,
+  arrayMove,
 } from '@dnd-kit/sortable'
 import { KanbanCard } from './Card'
 import { Button } from '../ui/button'
@@ -114,42 +115,61 @@ export function Board(): React.ReactElement {
       return
     }
 
-    // Only act if cross-column or reordering within the same column
     const fromColId = activeTask.columnId
 
-    // Build new task list for the target column
-    const targetTasks = tasks
-      .filter((t) => t.columnId === overColId && t.id !== active.id)
-      .sort((a, b) => a.order - b.order)
+    if (fromColId === overColId) {
+      const colTasks = tasks
+        .filter((t) => t.columnId === fromColId)
+        .sort((a, b) => a.order - b.order)
+      const activeIndex = colTasks.findIndex((t) => t.id === active.id)
+      const overIndex = colTasks.findIndex((t) => t.id === over.id)
 
-    const overIndex = overTask
-      ? targetTasks.findIndex((t) => t.id === over.id)
-      : targetTasks.length
+      if (activeIndex !== -1 && overIndex !== -1 && activeIndex !== overIndex) {
+        const reordered = arrayMove(colTasks, activeIndex, overIndex)
+        const orderMap: Record<string, { columnId: string; order: number }> = {}
+        for (const [i, t] of reordered.entries()) {
+          orderMap[t.id] = { columnId: fromColId, order: i }
+        }
+        useProjectStore.setState((s) => ({
+          tasks: s.tasks.map((t) => {
+            const update = orderMap[t.id]
+            return update ? { ...t, columnId: update.columnId, order: update.order } : t
+          }),
+        }))
+      }
+    } else {
+      // Reordering cross-column
+      const targetTasks = tasks
+        .filter((t) => t.columnId === overColId && t.id !== active.id)
+        .sort((a, b) => a.order - b.order)
 
-    targetTasks.splice(overIndex < 0 ? targetTasks.length : overIndex, 0, activeTask)
+      const overIndex = overTask
+        ? targetTasks.findIndex((t) => t.id === over.id)
+        : targetTasks.length
 
-    // Build update map
-    const orderMap: Record<string, { columnId: string; order: number }> = {}
-    for (const [i, t] of targetTasks.entries()) {
-      orderMap[t.id] = { columnId: overColId, order: i }
-    }
+      targetTasks.splice(overIndex < 0 ? targetTasks.length : overIndex, 0, activeTask)
 
-    // If moving cross-column, also reorder the source column to close the gap
-    if (fromColId !== overColId) {
+      // Build update map
+      const orderMap: Record<string, { columnId: string; order: number }> = {}
+      for (const [i, t] of targetTasks.entries()) {
+        orderMap[t.id] = { columnId: overColId, order: i }
+      }
+
+      // Reorder the source column to close the gap
       const sourceTasks = tasks
         .filter((t) => t.columnId === fromColId && t.id !== active.id)
         .sort((a, b) => a.order - b.order)
       for (const [i, t] of sourceTasks.entries()) {
         orderMap[t.id] = { columnId: fromColId, order: i }
       }
-    }
 
-    useProjectStore.setState((s) => ({
-      tasks: s.tasks.map((t) => {
-        const update = orderMap[t.id]
-        return update ? { ...t, columnId: update.columnId, order: update.order } : t
-      }),
-    }))
+      useProjectStore.setState((s) => ({
+        tasks: s.tasks.map((t) => {
+          const update = orderMap[t.id]
+          return update ? { ...t, columnId: update.columnId, order: update.order } : t
+        }),
+      }))
+    }
   }
 
   function handleDragEnd(event: DragEndEvent): void {
@@ -257,14 +277,21 @@ export function Board(): React.ReactElement {
 
   return (
     <div className="flex h-full flex-col bg-transparent">
-      <div className="flex items-center justify-between border-b border-border/40 bg-background/40 px-6 py-4 backdrop-blur-md">
-        <h2 className="text-xl font-bold tracking-tight text-primary">Board</h2>
-        <Button variant="default" size="sm" className="rounded-full font-medium shadow-sm transition-transform hover:scale-105" onClick={() => setColumnModalOpen(true)}>
+      <div className="z-10 flex h-14 shrink-0 items-center justify-between border-b border-border/25 bg-background/40 px-6 backdrop-blur-xl">
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-bold uppercase tracking-[0.08em] text-muted-foreground">Kanban Board</h2>
+        </div>
+        <Button 
+          variant="default" 
+          size="sm" 
+          className="rounded-xl font-bold shadow-sm transition-all hover:scale-[1.02] hover:shadow-md active:scale-98" 
+          onClick={() => setColumnModalOpen(true)}
+        >
           <Plus className="mr-1.5 h-4 w-4" />Add Column
         </Button>
       </div>
       <ScrollArea className="flex-1">
-        <div className="flex gap-4 p-6 min-h-full">
+        <div className="flex gap-5 p-6 min-h-full">
           <DndContext
             sensors={sensors}
             collisionDetection={closestCorners}

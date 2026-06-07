@@ -157,6 +157,21 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
         }))
       } else {
         const content = await window.electronAPI.readFile(path)
+        const status = state.gitStatus[relativePath]
+        const isModified = status?.includes('M')
+        
+        let orig: string | null = null
+        let shouldDiff = false
+        
+        if (isModified && state.rootPath) {
+          try {
+            orig = await window.electronAPI.getGitHeadContent(state.rootPath, relativePath)
+            shouldDiff = orig !== null
+          } catch (e) {
+            console.error('Failed to pre-fetch Git Head content:', e)
+          }
+        }
+
         set((s) => ({
           openFiles: s.openFiles.map((f) =>
             f.path === path
@@ -164,6 +179,8 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
                   ...f,
                   content,
                   loading: false,
+                  diffMode: shouldDiff,
+                  originalContent: orig,
                   error: content === null ? 'Binary or unreadable file' : null,
                 }
               : f,

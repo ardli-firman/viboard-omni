@@ -14,13 +14,13 @@ export function FileTabs(): ReactElement {
   const showFileTabs = openFiles.length > 0
 
   return (
-    <div className="flex h-[35px] items-stretch gap-0 overflow-x-auto border-b bg-muted/5">
+    <div className="flex h-10 items-stretch gap-0 overflow-x-auto border-b border-border/25 bg-background/25">
       <TabButton
         active={showExplorer}
         onClick={() => setActiveFile(null)}
         title="File Explorer"
       >
-        <FolderTree className="h-3.5 w-3.5 shrink-0" />
+        <FolderTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground/75" />
         <span>Explorer</span>
       </TabButton>
 
@@ -31,10 +31,10 @@ export function FileTabs(): ReactElement {
           return (
             <div
               key={file.path}
-              className={`group flex shrink-0 items-center border-r transition-colors cursor-pointer text-[13px] ${
+              className={`group flex shrink-0 items-center border-r border-border/20 transition-all cursor-pointer text-xs font-bold ${
                 isActive
-                  ? 'bg-background text-foreground'
-                  : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground'
+                  ? 'bg-card border-b-2 border-b-primary text-primary shadow-2xs'
+                  : 'text-muted-foreground hover:bg-primary/5 hover:text-foreground border-b border-b-transparent'
               }`}
               onClick={() => setActiveFile(file.path)}
               role="button"
@@ -51,22 +51,22 @@ export function FileTabs(): ReactElement {
               }}
               title={file.relativePath}
             >
-              <span className="ml-3 flex items-center gap-1.5 leading-[35px]">
-                <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-                <span className="truncate max-w-[140px]">{file.name}</span>
+              <span className="ml-3.5 flex items-center gap-1.5 leading-[40px]">
+                <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+                <span className="truncate max-w-[120px]">{file.name}</span>
                 {file.dirty && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
               </span>
 
-              <div className="flex items-center pr-1 pl-1 opacity-0 transition-opacity group-hover:opacity-100">
+              <div className="flex items-center pr-2.5 pl-1.5 opacity-0 transition-opacity group-hover:opacity-100">
                 {isModified && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
                       void toggleDiffMode(file.path)
                     }}
-                    className={`mx-0.5 inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded transition-colors ${
+                    className={`mx-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-lg transition-colors ${
                       file.diffMode
-                        ? 'bg-primary/20 text-primary'
+                        ? 'bg-primary/10 text-primary border border-primary/20'
                         : 'text-muted-foreground/50 hover:bg-accent hover:text-foreground'
                     }`}
                     title="Toggle Diff View"
@@ -79,7 +79,7 @@ export function FileTabs(): ReactElement {
                     e.stopPropagation()
                     closeFile(file.path)
                   }}
-                  className="mx-0.5 inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground"
+                  className="mx-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-lg text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground"
                   title="Close"
                 >
                   <X className="h-3 w-3" />
@@ -106,10 +106,10 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`flex shrink-0 items-center gap-1.5 border-r px-3 text-[13px] transition-colors ${
+      className={`flex shrink-0 items-center gap-1.5 border-r border-border/20 px-3.5 text-xs font-bold transition-all ${
         active
-          ? 'bg-background text-foreground'
-          : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground'
+          ? 'bg-card border-b-2 border-b-primary text-primary'
+          : 'text-muted-foreground hover:bg-primary/5 hover:text-foreground border-b border-b-transparent'
       }`}
       title={title}
     >

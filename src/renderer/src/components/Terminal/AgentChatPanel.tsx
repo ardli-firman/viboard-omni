@@ -73,9 +73,19 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
     const term = new Terminal({
       cursorBlink: true,
       fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, Menlo, Monaco, "Courier New", monospace',
-      fontSize: 14,
+      fontSize: 13,
       theme: {
         background: 'transparent',
+        foreground: '#e6ebe7',
+        cursor: '#8fc29b',
+        black: '#111613',
+        red: '#e06c75',
+        green: '#8fc29b',
+        yellow: '#e5c07b',
+        blue: '#61afef',
+        magenta: '#c678dd',
+        cyan: '#56b6c2',
+        white: '#abb2bf',
       },
     })
     const fitAddon = new FitAddon()
@@ -85,7 +95,7 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
     term.loadAddon(webLinksAddon)
     term.open(terminalRef.current)
     
-    term.write('\x1b[36m[AgentChatPanel] Initializing terminal...\x1b[0m\r\n')
+    term.write('\x1b[38;2;143;194;155m[AgentChatPanel] Initializing terminal...\x1b[0m\r\n')
 
     // Initial fit and auto-start
     setTimeout(() => {
@@ -100,13 +110,13 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
       
       if (currentStatus !== 'running') {
         if (currentTask) {
-          term.write('\x1b[36m[AgentChatPanel] Requesting OMP agent spawn...\x1b[0m\r\n')
+          term.write('\x1b[38;2;143;194;155m[AgentChatPanel] Requesting OMP agent spawn...\x1b[0m\r\n')
           window.electronAPI.spawnAgentPty(taskId, currentTask.projectPath, term.cols || 80, term.rows || 30)
         } else {
           term.write('\x1b[31m[AgentChatPanel] Error: Task not found in project store.\x1b[0m\r\n')
         }
       } else {
-        term.write('\x1b[36m[AgentChatPanel] Agent is already running, waiting for output...\x1b[0m\r\n')
+        term.write('\x1b[38;2;143;194;155m[AgentChatPanel] Agent is already running, waiting for output...\x1b[0m\r\n')
         window.electronAPI.spawnAgentPty(taskId, currentTask?.projectPath || '', term.cols || 80, term.rows || 30)
       }
     }, 100)
@@ -157,31 +167,36 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
 
   return (
     <div 
-      className={`relative shrink-0 flex flex-col border-t border-border/40 bg-[#1e1e1e] text-white transition-[height] duration-0 ${isResizing ? 'select-none' : ''}`}
+      className={`relative shrink-0 flex flex-col border-t border-border/30 bg-[#111613] text-[#e6ebe7] transition-[height] duration-0 ${isResizing ? 'select-none' : ''}`}
       style={{ height: panelHeight }}
     >
       <div 
-        className="absolute top-0 left-0 right-0 h-1.5 -translate-y-1/2 cursor-ns-resize z-50 bg-transparent hover:bg-primary/50 transition-colors"
+        className="absolute top-0 left-0 right-0 h-1 -translate-y-1/2 cursor-ns-resize z-50 bg-transparent hover:bg-primary/50 transition-colors"
         onMouseDown={handleMouseDown}
       />
-      <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-2.5 shadow-sm bg-background">
+      <div className="flex shrink-0 items-center justify-between border-b border-border/25 px-4 py-2 shadow-xs bg-card">
         <div className="flex min-w-0 items-center gap-2">
-          <TerminalIcon className="h-4 w-4 shrink-0 text-primary" />
-          <span className="text-sm font-semibold">Terminal</span>
-          {task && <span className="truncate text-xs text-muted-foreground">· {task.title}</span>}
-          <span className="ml-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <TerminalIcon className="h-4 w-4 shrink-0 text-primary animate-pulse" />
+          <span className="text-xs font-extrabold uppercase tracking-wider text-card-foreground">Agent Terminal</span>
+          {task && <span className="truncate text-xs text-muted-foreground font-semibold">· {task.title}</span>}
+          <span className="ml-3 flex items-center gap-1.5 rounded-full border border-border/40 bg-background/50 px-2 py-0.5 text-[10px] font-bold text-muted-foreground uppercase shadow-2xs">
             <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dot}`} />
             {statusInfo.text}
           </span>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={closePanel}>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-7 w-7 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive active:scale-95 transition-all" 
+            onClick={closePanel}
+          >
             <X className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden p-2">
+      <div className="flex-1 overflow-hidden p-3 font-mono">
         <div ref={terminalRef} className="h-full w-full" />
       </div>
     </div>

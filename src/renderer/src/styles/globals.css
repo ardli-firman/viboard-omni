@@ -4,48 +4,48 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: 30 50% 98%;
-  --foreground: 240 10% 15%;
-  --card: 0 0% 100%;
-  --card-foreground: 240 10% 15%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 15%;
-  --primary: 260 90% 65%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 35 100% 94%;
-  --secondary-foreground: 240 10% 15%;
-  --muted: 240 5% 94%;
-  --muted-foreground: 240 4% 46%;
-  --accent: 260 90% 95%;
-  --accent-foreground: 260 90% 45%;
-  --destructive: 348 100% 60%;
+  --background: 80 20% 96.5%;
+  --foreground: 140 40% 12%;
+  --card: 80 15% 99%;
+  --card-foreground: 140 40% 12%;
+  --popover: 80 15% 99%;
+  --popover-foreground: 140 40% 12%;
+  --primary: 135 25% 36%;
+  --primary-foreground: 80 20% 98%;
+  --secondary: 85 22% 90%;
+  --secondary-foreground: 140 40% 18%;
+  --muted: 80 12% 92%;
+  --muted-foreground: 140 12% 44%;
+  --accent: 135 25% 91%;
+  --accent-foreground: 135 35% 26%;
+  --destructive: 355 75% 48%;
   --destructive-foreground: 0 0% 100%;
-  --border: 240 5% 90%;
-  --input: 240 5% 90%;
-  --ring: 260 90% 65%;
-  --radius: 1rem;
+  --border: 135 15% 85%;
+  --input: 135 15% 85%;
+  --ring: 135 25% 36%;
+  --radius: 0.85rem;
 }
 
 .dark {
-  --background: 250 30% 12%;
-  --foreground: 0 0% 98%;
-  --card: 250 30% 16%;
-  --card-foreground: 0 0% 98%;
-  --popover: 250 30% 16%;
-  --popover-foreground: 0 0% 98%;
-  --primary: 260 90% 70%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 250 30% 20%;
-  --secondary-foreground: 0 0% 98%;
-  --muted: 250 30% 20%;
-  --muted-foreground: 250 15% 70%;
-  --accent: 260 50% 25%;
-  --accent-foreground: 260 90% 80%;
-  --destructive: 348 100% 60%;
+  --background: 140 18% 7.5%;
+  --foreground: 80 20% 95%;
+  --card: 140 14% 11.5%;
+  --card-foreground: 80 20% 95%;
+  --popover: 140 14% 11.5%;
+  --popover-foreground: 80 20% 95%;
+  --primary: 135 30% 60%;
+  --primary-foreground: 140 40% 9%;
+  --secondary: 140 12% 15%;
+  --secondary-foreground: 80 20% 95%;
+  --muted: 140 12% 14%;
+  --muted-foreground: 140 10% 66%;
+  --accent: 135 25% 17%;
+  --accent-foreground: 135 30% 84%;
+  --destructive: 355 80% 55%;
   --destructive-foreground: 0 0% 100%;
-  --border: 250 30% 25%;
-  --input: 250 30% 25%;
-  --ring: 260 90% 70%;
+  --border: 140 12% 15%;
+  --input: 140 12% 15%;
+  --ring: 135 30% 60%;
 }
 
 @theme inline {
@@ -72,7 +72,8 @@
 }
 
 * {
-  border-color: hsl(var(--border));
+  border-color: hsl(var(--border) / 0.5);
+  outline-color: hsl(var(--ring));
 }
 
 html,
@@ -83,13 +84,34 @@ body,
 
 body {
   background-color: hsl(var(--background));
-  background-image: 
-    radial-gradient(at 0% 0%, hsla(var(--primary), 0.15) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, hsla(var(--accent), 0.15) 0px, transparent 50%);
-  background-attachment: fixed;
   color: hsl(var(--foreground));
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-family: "Plus Jakarta Sans", "Inter", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   margin: 0;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color 0.4s cubic-bezier(0.16, 1, 0.3, 1), color 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Custom premium scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.2);
+  border-radius: 9999px;
+  transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.4);
+}
+
+/* Nice focus ring animation helper */
+.focus-ring {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
 }

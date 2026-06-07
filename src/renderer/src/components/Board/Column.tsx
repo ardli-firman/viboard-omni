@@ -76,12 +76,12 @@ export function KanbanColumn({
   }
 
   return (
-    <div ref={setNodeRef} style={style} className="group/column flex w-80 shrink-0 flex-col gap-3 rounded-2xl border border-border/40 bg-background/30 p-2 shadow-sm backdrop-blur-md transition-colors hover:bg-background/40">
+    <div ref={setNodeRef} style={style} className="group/column flex w-80 shrink-0 flex-col gap-3.5 rounded-2xl border border-border/30 bg-card/25 p-3.5 shadow-xs transition-all duration-300 hover:bg-card/35 hover:shadow-sm">
       {/* Header: drag handle + title + count + delete */}
-      <CardHeader className="flex flex-row items-center justify-between gap-1 px-3 py-2.5">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 p-0">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <button
-            className="cursor-grab touch-none text-muted-foreground/50 hover:text-muted-foreground"
+            className="cursor-grab touch-none text-muted-foreground/45 hover:text-primary transition-colors"
             {...attributes}
             {...listeners}
             title="Drag to reorder"
@@ -94,13 +94,13 @@ export function KanbanColumn({
               onChange={(e) => setEditTitle(e.target.value)}
               onBlur={handleSaveTitle}
               onKeyDown={handleKeyDown}
-              className="w-full min-w-0 text-sm font-medium bg-transparent border-none focus:ring-0 focus-visible:ring-0"
+              className="h-8 w-full min-w-0 bg-background/50 border-border/30 rounded-lg text-xs font-bold px-2 focus:ring-1 focus:ring-primary/40"
               autoFocus
             />
           ) : (
             <>
               <CardTitle
-                className="truncate text-sm font-medium cursor-pointer"
+                className="truncate text-xs font-bold uppercase tracking-wider text-foreground/85 cursor-pointer hover:text-primary transition-colors select-none"
                 onDoubleClick={() => setIsEditing(true)}
                 title="Double-click to edit"
               >
@@ -116,27 +116,27 @@ export function KanbanColumn({
                 }}
                 title="Edit column title"
               >
-                <Pencil className="h-3.5 w-3.5" />
+                <Pencil className="h-3 w-3" />
               </Button>
             </>
           )}
-          <span className="shrink-0 text-xs text-muted-foreground">{taskCount}</span>
+          <span className="shrink-0 rounded-full border border-border/25 bg-background/40 px-2 py-0.5 text-[10px] font-bold text-muted-foreground/80">{taskCount}</span>
         </div>
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 shrink-0 text-muted-foreground/50 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover/column:opacity-100"
+          className="h-7 w-7 shrink-0 text-muted-foreground/40 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover/column:opacity-100"
           onClick={() => setConfirmOpen(true)}
           title="Delete column"
         >
-          <Trash2 className="h-4 w-4" />
+          <Trash2 className="h-3.5 w-3.5" />
         </Button>
       </CardHeader>
 
       {/* Tasks area */}
       <div
-        className={`flex flex-col gap-2 rounded-xl bg-transparent transition-colors ${
-          isOver ? 'bg-primary/5 ring-2 ring-primary/20' : ''
+        className={`flex flex-col gap-3 rounded-xl bg-transparent transition-all ${
+          isOver ? 'bg-primary/5 ring-1 ring-primary/20 p-1' : ''
         }`}
       >
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
@@ -151,7 +151,7 @@ export function KanbanColumn({
           ))}
         </SortableContext>
         {tasks.length === 0 && (
-          <div className="flex min-h-[5rem] items-center justify-center rounded-xl border border-dashed border-border/60 text-sm font-medium text-muted-foreground/60 transition-colors hover:border-primary/30 hover:text-primary/60">
+          <div className="flex min-h-[6rem] items-center justify-center rounded-xl border border-dashed border-border/40 bg-background/10 text-xs font-bold text-muted-foreground/45 transition-all duration-300 hover:border-primary/25 hover:text-primary/75 hover:bg-primary/5">
             Drop tasks here
           </div>
         )}
@@ -160,11 +160,11 @@ export function KanbanColumn({
       <Button
         variant="ghost"
         size="sm"
-        className="mt-1 justify-start gap-2 rounded-xl text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary"
+        className="mt-1 justify-start gap-2 rounded-xl text-xs font-bold text-muted-foreground/85 transition-all hover:bg-primary/10 hover:text-primary active:scale-95"
         onClick={onAddTask}
       >
         <Plus className="h-4 w-4" />
-        <span className="font-medium">Add task</span>
+        <span>Add task</span>
       </Button>
 
       {/* Delete confirmation dialog */}

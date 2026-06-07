@@ -79,12 +79,9 @@ export function ExplorerPanel(): ReactElement {
 
   const widthPx = panelOpen ? panelWidth : COLLAPSED_WIDTH
 
-  const iconH =
-    'inline-flex h-[26px] w-[26px] items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground'
-
   return (
     <div
-      className="relative flex shrink-0 overflow-hidden bg-muted/20"
+      className="relative flex shrink-0 overflow-hidden bg-card/20"
       style={{ width: `${widthPx}px` }}
     >
       {/* Drag handle - left edge of right panel */}
@@ -94,43 +91,43 @@ export function ExplorerPanel(): ReactElement {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onDoubleClick={onDoubleClick}
-        className={`group absolute left-0 top-0 z-10 h-full w-[5px] cursor-col-resize transition-colors ${
-          isDragging.current ? 'bg-primary/30' : 'hover:bg-primary/20'
+        className={`group absolute left-0 top-0 z-10 h-full w-[4px] cursor-col-resize transition-colors ${
+          isDragging.current ? 'bg-primary/40' : 'hover:bg-primary/20'
         }`}
         title="Drag to resize. Double-click to reset."
       />
 
-      <aside className="flex w-full flex-col border-l">
-        {/* Header - VSCode style */}
+      <aside className="flex w-full flex-col border-l border-border/20">
+        {/* Header - SaaS style */}
         <div
-          className={`flex h-[35px] items-center border-b ${
-            panelOpen ? 'justify-between pl-3 pr-[3px]' : 'justify-center'
+          className={`flex h-12 items-center border-b border-border/20 bg-background/25 ${
+            panelOpen ? 'justify-between pl-4 pr-1.5' : 'justify-center'
           } shrink-0`}
         >
           {panelOpen && (
-            <span className="select-none text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
+            <span className="select-none text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/80">
               Explorer
             </span>
           )}
-          <div className="flex items-center">
+          <div className="flex items-center gap-0.5">
             {panelOpen && rootPath && (
               <button
                 onClick={() => rootPath && void loadTree(rootPath)}
-                className={iconH}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-muted-foreground/60 transition-all hover:bg-primary/10 hover:text-primary active:scale-95"
                 title="Refresh Explorer"
               >
-                <RotateCw className="h-[14px] w-[14px]" />
+                <RotateCw className="h-4 w-4" />
               </button>
             )}
             <button
               onClick={togglePanel}
-              className={iconH}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-muted-foreground/60 transition-all hover:bg-primary/10 hover:text-primary active:scale-95"
               title={panelOpen ? 'Collapse' : 'Expand'}
             >
               {panelOpen ? (
-                <PanelRightClose className="h-[14px] w-[14px]" />
+                <PanelRightClose className="h-4 w-4" />
               ) : (
-                <PanelRightOpen className="h-[14px] w-[14px]" />
+                <PanelRightOpen className="h-4 w-4" />
               )}
             </button>
           </div>
@@ -139,7 +136,7 @@ export function ExplorerPanel(): ReactElement {
         {panelOpen && (
           <>
             <FileTabs />
-            <div className="flex flex-1 flex-col overflow-hidden min-h-0">
+            <div className="flex flex-1 flex-col overflow-hidden min-h-0 bg-background/5">
               {activeView === 'explorer' ? (
                 <FileTree />
               ) : activeFile ? (
