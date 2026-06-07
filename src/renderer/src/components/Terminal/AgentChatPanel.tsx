@@ -6,7 +6,7 @@ import '@xterm/xterm/css/xterm.css'
 import { useTerminalStore } from '../../stores/terminalStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { Button } from '../ui/button'
-import { X, Square, RotateCcw, Bot, Play } from 'lucide-react'
+import { X, Bot } from 'lucide-react'
 
 interface AgentChatPanelProps {
   taskId: string
@@ -72,8 +72,8 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
 
     const term = new Terminal({
       cursorBlink: true,
-      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-      fontSize: 13,
+      fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, Menlo, Monaco, "Courier New", monospace',
+      fontSize: 14,
       theme: {
         background: 'transparent',
       },
@@ -141,25 +141,6 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
     return () => observer.disconnect()
   }, [taskId])
 
-  const handleStart = useCallback(() => {
-    if (!task) return
-    if (xtermRef.current) {
-      xtermRef.current.reset()
-    }
-    const cols = xtermRef.current?.cols || 80
-    const rows = xtermRef.current?.rows || 30
-    window.electronAPI.spawnAgentPty(taskId, task.projectPath, cols, rows)
-  }, [taskId, task])
-
-  const handleStop = useCallback((): void => {
-    window.electronAPI.killAgentPty(taskId)
-  }, [taskId])
-
-  const handleRestart = useCallback((): void => {
-    handleStop()
-    setTimeout(() => handleStart(), 500)
-  }, [handleStop, handleStart])
-
   return (
     <div 
       className={`relative flex flex-col border-t border-border/40 bg-[#1e1e1e] text-white transition-[height] duration-0 ${isResizing ? 'select-none' : ''}`}
@@ -180,30 +161,6 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
           </span>
         </div>
         <div className="flex items-center gap-1">
-          {status === 'running' ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-red-400 hover:text-red-500"
-              title="Stop session"
-              onClick={handleStop}
-            >
-              <Square className="h-4 w-4 fill-current" />
-            </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-green-400 hover:text-green-500"
-              title="Start session"
-              onClick={handleStart}
-            >
-              <Play className="h-4 w-4 fill-current" />
-            </Button>
-          )}
-          <Button variant="ghost" size="icon" className="h-7 w-7" title="Restart session" onClick={handleRestart}>
-            <RotateCcw className="h-4 w-4" />
-          </Button>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={closePanel}>
             <X className="h-4 w-4" />
           </Button>

@@ -1,7 +1,7 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, app } from 'electron'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { existsSync } from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
 import { getDatabase } from '../database/init'
 import * as pty from '@cocktailpeanut/node-pty-prebuilt-multiarch'
 import type { AgentStatus } from '../../src/shared/types'
@@ -87,12 +87,18 @@ export function registerTerminalHandlers(): void {
       if (runs.has(taskId)) {
         await killPtyAsync(taskId)
       }
-
       const ompPath = resolveOmpBinary()
       const cwd = projectPath && existsSync(projectPath) ? projectPath : process.cwd()
 
       try {
-        const childProcess = pty.spawn(process.platform === 'win32' ? 'cmd.exe' : ompPath, process.platform === 'win32' ? ['/c', ompPath] : [], {
+        const sessionDir = path.join(app.getPath('userData'), 'omp-sessions')
+        if (!existsSync(sessionDir)) {
+          mkdirSync(sessionDir, { recursive: true })
+        }
+        const sessionFile = path.join(sessionDir, `${taskId}.jsonl`)
+        
+        const ompArgs = process.platform === 'win32' ? ['/c', ompPath, '--resume', sessionFile] : ['--resume', sessionFile]
+        const childProcess = pty.spawn(process.platform === 'win32' ? 'cmd.exe' : ompPath, ompArgs, {
           name: 'xterm-color',
           cols,
           rows,
@@ -103,6 +109,7 @@ export function registerTerminalHandlers(): void {
             OMP_PROJECT_PATH: cwd,
             OMP_SESSION_PER_TASK: '1',
             FORCE_COLOR: '1',
+            NO_UPDATE: '1',
           } as Record<string, string>,
         })
 
