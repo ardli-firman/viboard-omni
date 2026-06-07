@@ -10,10 +10,11 @@ import { ProjectPicker } from './components/ProjectPicker/ProjectPicker'
 import { useThemeStore } from './stores/themeStore'
 import { useTerminalStore } from './stores/terminalStore'
 import { useProjectStore } from './stores/projectStore'
+import type { AgentActivity } from '@shared/types'
 
 function App(): React.ReactElement {
   const { init } = useThemeStore()
-  const { panelOpen, activeTaskId, setStatus } = useTerminalStore()
+  const { panelOpen, activeTaskId, setStatus, setActivity } = useTerminalStore()
   const { currentProject, loadProjects, setAgentStatus } = useProjectStore()
 
   useEffect(() => {
@@ -22,16 +23,30 @@ function App(): React.ReactElement {
   }, [init, loadProjects])
 
   // Bridge OMP agent session status from main process into the renderer stores.
+  // Uses scoped listener: stores the handler ref for targeted cleanup.
   useEffect(() => {
-    const handler = (data: { taskId: string; status: 'idle' | 'running' | 'completed' | 'error' }): void => {
-      setStatus(data.taskId, data.status)
-      setAgentStatus(data.taskId, data.status)
-    }
-    window.electronAPI.onAgentStatus(handler)
+    const ipcHandler = window.electronAPI.onAgentStatus(
+      (data: { taskId: string; status: 'idle' | 'running' | 'completed' | 'error' }): void => {
+        setStatus(data.taskId, data.status)
+        setAgentStatus(data.taskId, data.status)
+      },
+    )
     return () => {
-      window.electronAPI.removeAgentStatusListener()
+      window.electronAPI.removeAgentStatusListener(ipcHandler)
     }
   }, [setStatus, setAgentStatus])
+
+  // Bridge granular agent activity updates into the terminal store.
+  useEffect(() => {
+    const ipcHandler = window.electronAPI.onAgentActivity(
+      (data: { taskId: string; activity: AgentActivity }): void => {
+        setActivity(data.taskId, data.activity)
+      },
+    )
+    return () => {
+      window.electronAPI.removeAgentActivityListener(ipcHandler)
+    }
+  }, [setActivity])
 
   return (
     <>

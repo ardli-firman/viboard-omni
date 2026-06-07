@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
-import { Terminal } from '@xterm/xterm'
-import { FitAddon } from '@xterm/addon-fit'
-import { WebLinksAddon } from '@xterm/addon-web-links'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import type { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
+import { TerminalManager } from './TerminalManager'
 import { useTerminalStore } from '../../stores/terminalStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { Button } from '../ui/button'
@@ -14,24 +13,44 @@ interface AgentChatPanelProps {
 
 const statusLabels: Record<string, { text: string; dot: string }> = {
   idle: { text: 'No session', dot: 'bg-muted-foreground' },
-  running: { text: 'running', dot: 'bg-blue-500 animate-pulse' },
-  completed: { text: 'session completed', dot: 'bg-green-500' },
-  error: { text: 'session error', dot: 'bg-red-500' },
+  completed: { text: 'completed', dot: 'bg-green-500' },
+  error: { text: 'error', dot: 'bg-red-500' },
 }
 
 export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElement {
   const { closePanel, panelHeight, setPanelHeight } = useTerminalStore()
   const { tasks } = useProjectStore()
   const status = useTerminalStore((s) => s.status[taskId]) ?? 'idle'
+  const activity = useTerminalStore((s) => s.activity[taskId]) ?? 'waiting'
 
   const task = tasks.find((t) => t.id === taskId)
-  const statusInfo = statusLabels[status] ?? statusLabels.idle
+  
+  // Dynamic status details based on process state and granular agent activity
+  const getStatusInfo = (): { text: string; dot: string } => {
+    if (status !== 'running') {
+      return statusLabels[status] ?? statusLabels.idle
+    }
+    switch (activity) {
+      case 'thinking':
+        return { text: 'thinking...', dot: 'bg-indigo-500 animate-pulse' }
+      case 'tool_use':
+        return { text: 'running tool...', dot: 'bg-purple-500 animate-pulse' }
+      case 'responding':
+        return { text: 'responding...', dot: 'bg-emerald-500 animate-pulse' }
+      case 'waiting':
+      default:
+        return { text: 'waiting for input', dot: 'bg-amber-500' }
+    }
+  }
+
+  const statusInfo = getStatusInfo()
 
   const [isResizing, setIsResizing] = useState(false)
   const lastYRef = useRef<number>(0)
-  const terminalRef = useRef<HTMLDivElement>(null)
+  const terminalContainerRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
-  const fitAddonRef = useRef<FitAddon | null>(null)
+
+  // ── Resize Drag ──────────────────────────────────────────────────
 
   useEffect(() => {
     if (!isResizing) return
@@ -66,104 +85,123 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
     setIsResizing(true)
   }
 
-  // Initialize xterm
+  // ── Terminal Attach / Detach ──────────────────────────────────────
+  // Instead of creating/destroying xterm on every mount, we use the
+  // TerminalManager singleton to attach (show) / detach (hide) a
+  // persistent session. The xterm and its scrollback survive task switches.
+
   useEffect(() => {
-    if (!terminalRef.current) return
+    if (!terminalContainerRef.current) return
 
-    const term = new Terminal({
-      cursorBlink: true,
-      fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, Menlo, Monaco, "Courier New", monospace',
-      fontSize: 13,
-      theme: {
-        background: 'transparent',
-        foreground: '#e6ebe7',
-        cursor: '#8fc29b',
-        black: '#111613',
-        red: '#e06c75',
-        green: '#8fc29b',
-        yellow: '#e5c07b',
-        blue: '#61afef',
-        magenta: '#c678dd',
-        cyan: '#56b6c2',
-        white: '#abb2bf',
-      },
-    })
-    const fitAddon = new FitAddon()
-    const webLinksAddon = new WebLinksAddon()
+    const manager = TerminalManager.getInstance()
 
-    term.loadAddon(fitAddon)
-    term.loadAddon(webLinksAddon)
-    term.open(terminalRef.current)
-    
-    term.write('\x1b[38;2;143;194;155m[AgentChatPanel] Initializing terminal...\x1b[0m\r\n')
+    // Determine if this is a fresh session (never created before)
+    const isNewSession = !manager.has(taskId)
 
-    // Initial fit and auto-start
-    setTimeout(() => {
-      try {
-        fitAddon.fit()
-      } catch (e) {
-        // Ignore fit errors if container is not ready
-      }
-      
-      const currentStatus = useTerminalStore.getState().status[taskId]
-      const currentTask = useProjectStore.getState().tasks.find((t) => t.id === taskId)
-      
-      if (currentStatus !== 'running') {
-        if (currentTask) {
-          term.write('\x1b[38;2;143;194;155m[AgentChatPanel] Requesting OMP agent spawn...\x1b[0m\r\n')
-          window.electronAPI.spawnAgentPty(taskId, currentTask.projectPath, term.cols || 80, term.rows || 30)
-        } else {
-          term.write('\x1b[31m[AgentChatPanel] Error: Task not found in project store.\x1b[0m\r\n')
-        }
-      } else {
-        term.write('\x1b[38;2;143;194;155m[AgentChatPanel] Agent is already running, waiting for output...\x1b[0m\r\n')
-        window.electronAPI.spawnAgentPty(taskId, currentTask?.projectPath || '', term.cols || 80, term.rows || 30)
-      }
-    }, 100)
-
-    xtermRef.current = term
-    fitAddonRef.current = fitAddon
-
-    // Handle data from terminal to pty
-    const onDataDisposable = term.onData((data) => {
+    // Attach the terminal's DOM into our visible container.
+    // If the session already exists, this re-attaches it with buffered output.
+    const onData = (data: string): void => {
       const currentStatus = useTerminalStore.getState().status[taskId]
       if (currentStatus === 'running') {
         window.electronAPI.sendAgentPtyData(taskId, data)
       }
-    })
+    }
 
-    // Listen for data from pty to terminal
-    window.electronAPI.onAgentPtyOutput((payload) => {
-      if (payload.taskId === taskId) {
-        term.write(payload.data)
-      }
-    })
+    const term = manager.attach(taskId, terminalContainerRef.current, onData)
+    xtermRef.current = term
 
+    // Only spawn a new PTY if this is a fresh session (no running process)
+    if (isNewSession) {
+      // Show init message
+      term.write('\x1b[38;2;143;194;155m[Terminal] Initializing session...\x1b[0m\r\n')
+
+      // Delay slightly so xterm has time to fit and measure cols/rows
+      setTimeout(() => {
+        const fitAddon = manager.getFitAddon(taskId)
+        try {
+          fitAddon?.fit()
+        } catch {
+          // ignore fit errors if container isn't ready
+        }
+
+        const currentStatus = useTerminalStore.getState().status[taskId]
+        const currentTask = useProjectStore.getState().tasks.find((t) => t.id === taskId)
+
+        if (currentStatus !== 'running') {
+          if (currentTask) {
+            term.write('\x1b[38;2;143;194;155m[Terminal] Spawning agent...\x1b[0m\r\n')
+            window.electronAPI.spawnAgentPty(
+              taskId,
+              currentTask.projectPath,
+              term.cols || 80,
+              term.rows || 30,
+            )
+          } else {
+            term.write('\x1b[31m[Terminal] Error: Task not found.\x1b[0m\r\n')
+          }
+        }
+      }, 100)
+    } else {
+      // Existing session — just re-fit
+      setTimeout(() => {
+        const fitAddon = manager.getFitAddon(taskId)
+        try {
+          fitAddon?.fit()
+        } catch {
+          // ignore
+        }
+      }, 50)
+    }
+
+    // Cleanup: detach (don't dispose!) so the session stays alive
     return () => {
-      onDataDisposable.dispose()
-      term.dispose()
-      window.electronAPI.removeAgentPtyOutputListener()
+      manager.detach(taskId)
     }
   }, [taskId])
 
-  // Resize observer to refit terminal when panel resizes
-  useEffect(() => {
-    if (!terminalRef.current || !fitAddonRef.current || !xtermRef.current) return
+  // ── IPC Output Listener ──────────────────────────────────────────
+  // A single scoped listener routes PTY output to the TerminalManager.
+  // The manager handles writing to attached terminals and buffering
+  // for detached ones.
 
-    const observer = new ResizeObserver(() => {
-      try {
-        fitAddonRef.current?.fit()
-        if (xtermRef.current) {
-          window.electronAPI.resizeAgentPty(taskId, xtermRef.current.cols, xtermRef.current.rows)
-        }
-      } catch {
-        // ignore
-      }
+  useEffect(() => {
+    const manager = TerminalManager.getInstance()
+
+    const handler = window.electronAPI.onAgentPtyOutput((payload: { taskId: string; data: string }) => {
+      manager.writeToTerminal(payload.taskId, payload.data)
     })
 
-    observer.observe(terminalRef.current)
-    return () => observer.disconnect()
+    return () => {
+      window.electronAPI.removeAgentPtyOutputListener(handler)
+    }
+  }, []) // Mount once — routes ALL taskIds through TerminalManager
+
+  // ── Resize Observer ──────────────────────────────────────────────
+  // Re-fits xterm when the panel container resizes.
+
+  const handleResize = useCallback(() => {
+    const manager = TerminalManager.getInstance()
+    const fitAddon = manager.getFitAddon(taskId)
+    const term = manager.getTerminal(taskId)
+    try {
+      fitAddon?.fit()
+      if (term) {
+        window.electronAPI.resizeAgentPty(taskId, term.cols, term.rows)
+      }
+    } catch {
+      // ignore
+    }
   }, [taskId])
+
+  useEffect(() => {
+    if (!terminalContainerRef.current) return
+
+    const observer = new ResizeObserver(handleResize)
+    observer.observe(terminalContainerRef.current)
+    return () => observer.disconnect()
+  }, [taskId, handleResize])
+
+  // ── Render ────────────────────────────────────────────────────────
 
   return (
     <div 
@@ -197,7 +235,7 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
       </div>
 
       <div className="flex-1 overflow-hidden p-3 font-mono">
-        <div ref={terminalRef} className="h-full w-full" />
+        <div ref={terminalContainerRef} className="h-full w-full" />
       </div>
     </div>
   )

@@ -1,8 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Column, Task, ThemeMode, RegisteredProject, AgentOutputEvent } from '../src/shared/types'
+import type { Column, Task, ThemeMode, RegisteredProject, AgentOutputEvent, AgentActivity } from '../src/shared/types'
 import type { FileEntry, FileTreeItem } from './ipc/files'
 
 type AgentStatus = 'idle' | 'running' | 'completed' | 'error'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type IpcHandler = (...args: any[]) => void
 
 const api = {
   // Project list
@@ -49,7 +52,7 @@ const api = {
   moveTask: (taskId: string, columnId: string, order: number): Promise<Task> =>
     ipcRenderer.invoke('task:move', taskId, columnId, order),
 
-  // Terminal PTY methods
+  // ── Terminal PTY methods ─────────────────────────────────────────
   spawnAgentPty: (taskId: string, projectPath: string, cols: number, rows: number): Promise<void> =>
     ipcRenderer.invoke('agent:pty:spawn', { taskId, projectPath, cols, rows }),
   sendAgentPtyData: (taskId: string, data: string): Promise<void> =>
@@ -59,24 +62,52 @@ const api = {
   killAgentPty: (taskId: string): Promise<void> =>
     ipcRenderer.invoke('agent:pty:kill', taskId),
 
-  onAgentPtyOutput: (callback: (data: { taskId: string; data: string }) => void): void => {
+  // Scoped listener pattern: returns the handler so the caller can
+  // remove *just that specific handler* instead of nuking all listeners.
+  onAgentPtyOutput: (callback: (data: { taskId: string; data: string }) => void): IpcHandler => {
     const handler = (_event: Electron.IpcRendererEvent, data: { taskId: string; data: string }): void =>
       callback(data)
     ipcRenderer.on('agent:pty:output', handler)
+    return handler
   },
-  removeAgentPtyOutputListener: (): void => {
-    ipcRenderer.removeAllListeners('agent:pty:output')
+  removeAgentPtyOutputListener: (handler?: IpcHandler): void => {
+    if (handler) {
+      ipcRenderer.removeListener('agent:pty:output', handler)
+    } else {
+      ipcRenderer.removeAllListeners('agent:pty:output')
+    }
   },
 
-  onAgentStatus: (callback: (data: { taskId: string; status: AgentStatus }) => void): void => {
+  onAgentStatus: (callback: (data: { taskId: string; status: AgentStatus }) => void): IpcHandler => {
     const handler = (
       _event: Electron.IpcRendererEvent,
       data: { taskId: string; status: AgentStatus },
     ): void => callback(data)
     ipcRenderer.on('agent:status', handler)
+    return handler
   },
-  removeAgentStatusListener: (): void => {
-    ipcRenderer.removeAllListeners('agent:status')
+  removeAgentStatusListener: (handler?: IpcHandler): void => {
+    if (handler) {
+      ipcRenderer.removeListener('agent:status', handler)
+    } else {
+      ipcRenderer.removeAllListeners('agent:status')
+    }
+  },
+
+  onAgentActivity: (callback: (data: { taskId: string; activity: AgentActivity }) => void): IpcHandler => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { taskId: string; activity: AgentActivity },
+    ): void => callback(data)
+    ipcRenderer.on('agent:activity', handler)
+    return handler
+  },
+  removeAgentActivityListener: (handler?: IpcHandler): void => {
+    if (handler) {
+      ipcRenderer.removeListener('agent:activity', handler)
+    } else {
+      ipcRenderer.removeAllListeners('agent:activity')
+    }
   },
 
   getTheme: (): Promise<ThemeMode> => ipcRenderer.invoke('theme:get'),

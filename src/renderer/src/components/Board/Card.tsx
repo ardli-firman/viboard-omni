@@ -1,9 +1,10 @@
-import type { Task, AgentStatus } from '@shared/types'
+import type { Task, AgentStatus, AgentActivity } from '@shared/types'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Card, CardContent } from '../ui/card'
 import { Button } from '../ui/button'
 import { Pencil, Trash2, Calendar, CheckSquare } from 'lucide-react'
+import { useTerminalStore } from '../../stores/terminalStore'
 
 interface KanbanCardProps {
   task: Task
@@ -12,11 +13,73 @@ interface KanbanCardProps {
   onOpenChat: () => void
 }
 
-const statusColors: Record<AgentStatus, string> = {
-  idle: 'bg-muted/60 text-muted-foreground border-muted-foreground/20',
-  running: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 animate-pulse',
-  completed: 'bg-primary/10 text-primary border-primary/30',
-  error: 'bg-destructive/10 text-destructive border-destructive/30',
+interface StatusDisplay {
+  label: string
+  className: string
+  lineClass: string | null
+  ringClass: string | null
+}
+
+const getCardStatusDisplay = (status: AgentStatus, activity: AgentActivity): StatusDisplay => {
+  if (status !== 'running') {
+    switch (status) {
+      case 'completed':
+        return {
+          label: 'completed',
+          className: 'bg-primary/10 text-primary border-primary/30',
+          lineClass: 'bg-primary',
+          ringClass: 'ring-1 ring-primary/20',
+        }
+      case 'error':
+        return {
+          label: 'error',
+          className: 'bg-destructive/10 text-destructive border-destructive/30',
+          lineClass: 'bg-destructive',
+          ringClass: 'ring-1 ring-destructive/20',
+        }
+      case 'idle':
+      default:
+        return {
+          label: 'idle',
+          className: 'bg-muted/60 text-muted-foreground border-muted-foreground/20',
+          lineClass: null,
+          ringClass: null,
+        }
+    }
+  }
+
+  // running status - map activity
+  switch (activity) {
+    case 'thinking':
+      return {
+        label: 'thinking',
+        className: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30 animate-pulse',
+        lineClass: 'bg-indigo-500 animate-pulse',
+        ringClass: 'ring-1 ring-indigo-500/30',
+      }
+    case 'tool_use':
+      return {
+        label: 'running tool',
+        className: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30 animate-pulse',
+        lineClass: 'bg-purple-500 animate-pulse',
+        ringClass: 'ring-1 ring-purple-500/30',
+      }
+    case 'responding':
+      return {
+        label: 'responding',
+        className: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 animate-pulse',
+        lineClass: 'bg-emerald-500 animate-pulse',
+        ringClass: 'ring-1 ring-emerald-500/30',
+      }
+    case 'waiting':
+    default:
+      return {
+        label: 'waiting',
+        className: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30',
+        lineClass: 'bg-amber-500',
+        ringClass: 'ring-1 ring-amber-500/30',
+      }
+  }
 }
 
 export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardProps): React.ReactElement {
@@ -24,6 +87,10 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
     id: task.id,
     data: { type: 'task' as const },
   })
+
+  const realStatus = useTerminalStore((s) => s.status[task.id]) ?? task.agentStatus
+  const realActivity = useTerminalStore((s) => s.activity[task.id]) ?? 'waiting'
+  const display = getCardStatusDisplay(realStatus, realActivity)
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -62,7 +129,7 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
       style={style}
       className={`group/card relative cursor-grab overflow-hidden rounded-2xl border border-border/40 bg-card p-0 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_8px_30px_rgb(60,110,71,0.08)] active:cursor-grabbing ${
         isDragging ? 'ring-2 ring-primary/50 opacity-40 shadow-lg' : ''
-      } ${task.agentStatus === 'running' ? 'ring-1 ring-emerald-500/30' : ''}`}
+      } ${display.ringClass ?? ''}`}
       {...attributes}
       {...listeners}
       onClick={() => {
@@ -72,8 +139,8 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
       }}
     >
       {/* Decorative accent top line for running status */}
-      {task.agentStatus === 'running' && (
-        <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
+      {display.lineClass && (
+        <div className={`absolute top-0 left-0 right-0 h-1 ${display.lineClass}`} />
       )}
 
       <CardContent className="space-y-4.5 p-4.5">
@@ -161,8 +228,8 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
           </div>
 
           <div className="flex items-center gap-1.5">
-            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase shadow-xs ${statusColors[task.agentStatus] ?? statusColors.idle}`}>
-              {task.agentStatus}
+            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase shadow-xs ${display.className}`}>
+              {display.label}
             </span>
           </div>
         </div>

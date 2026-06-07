@@ -4,6 +4,9 @@ export type AgentType = 'pi-agent'
 
 export type AgentStatus = 'idle' | 'running' | 'completed' | 'error'
 
+/** Granular real-time activity of the agent within a running session. */
+export type AgentActivity = 'waiting' | 'thinking' | 'tool_use' | 'responding'
+
 export interface Column {
   id: string
   title: string
