@@ -10,6 +10,7 @@ import {
   DragOverlay,
   type DragStartEvent,
   type DragEndEvent,
+  type DragOverEvent,
   closestCorners,
   KeyboardSensor,
   PointerSensor,
@@ -36,6 +37,7 @@ export function Board(): React.ReactElement {
     deleteTask,
     deleteColumn,
     reorderColumns,
+    updateColumn,
   } = useProjectStore()
   const { openPanel } = useTerminalStore()
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -91,6 +93,65 @@ export function Board(): React.ReactElement {
     setActiveType((event.active.data.current?.type as 'task' | 'column' | undefined) ?? null)
   }
 
+  function handleDragOver(event: DragOverEvent): void {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const activeType = active.data.current?.type as 'task' | 'column' | undefined
+    if (activeType !== 'task') return
+
+    const activeTask = tasks.find((t) => t.id === active.id)
+    if (!activeTask) return
+
+    // Determine the target column
+    let overColId: string
+    const overTask = tasks.find((t) => t.id === over.id)
+    if (overTask) {
+      overColId = overTask.columnId
+    } else if (sortedColumnsFromStore.some((c) => c.id === over.id)) {
+      overColId = over.id as string
+    } else {
+      return
+    }
+
+    // Only act if cross-column or reordering within the same column
+    const fromColId = activeTask.columnId
+
+    // Build new task list for the target column
+    const targetTasks = tasks
+      .filter((t) => t.columnId === overColId && t.id !== active.id)
+      .sort((a, b) => a.order - b.order)
+
+    const overIndex = overTask
+      ? targetTasks.findIndex((t) => t.id === over.id)
+      : targetTasks.length
+
+    targetTasks.splice(overIndex < 0 ? targetTasks.length : overIndex, 0, activeTask)
+
+    // Build update map
+    const orderMap: Record<string, { columnId: string; order: number }> = {}
+    for (const [i, t] of targetTasks.entries()) {
+      orderMap[t.id] = { columnId: overColId, order: i }
+    }
+
+    // If moving cross-column, also reorder the source column to close the gap
+    if (fromColId !== overColId) {
+      const sourceTasks = tasks
+        .filter((t) => t.columnId === fromColId && t.id !== active.id)
+        .sort((a, b) => a.order - b.order)
+      for (const [i, t] of sourceTasks.entries()) {
+        orderMap[t.id] = { columnId: fromColId, order: i }
+      }
+    }
+
+    useProjectStore.setState((s) => ({
+      tasks: s.tasks.map((t) => {
+        const update = orderMap[t.id]
+        return update ? { ...t, columnId: update.columnId, order: update.order } : t
+      }),
+    }))
+  }
+
   function handleDragEnd(event: DragEndEvent): void {
     const { active, over } = event
     if (!over || active.id === over.id) {
@@ -137,35 +198,29 @@ export function Board(): React.ReactElement {
       return
     }
 
-    // Task reorder — optimistic update: sync state first, persist in background.
+    // Task reorder — state was already updated optimistically in handleDragOver.
+    // Here we just persist the final positions to the database.
     const activeTask = tasks.find((t) => t.id === active.id)
-    if (!activeTask) return
-    let targetColId = over.id as string
+    if (!activeTask) {
+      setActiveId(null)
+      setActiveType(null)
+      return
+    }
+
+    // Persist all tasks in the affected column(s) to the database.
+    const affectedColIds = new Set<string>()
+    affectedColIds.add(activeTask.columnId)
+    // If the drag started from a different column, persist that too
     const overTask = tasks.find((t) => t.id === over.id)
-    if (overTask) {
-      targetColId = overTask.columnId
-    }
-    const targetTasks = tasks.filter((t) => t.columnId === targetColId && t.id !== active.id).sort((a, b) => a.order - b.order)
-    const overIndex = overTask ? targetTasks.findIndex((t) => t.id === over.id) : targetTasks.length
-    targetTasks.splice(overIndex < 0 ? targetTasks.length : overIndex, 0, activeTask)
+    if (overTask) affectedColIds.add(overTask.columnId)
 
-    // Build updated order map and apply synchronously so dnd-kit sees new order immediately.
-    const orderMap: Record<string, { columnId: string; order: number }> = {}
-    for (const [i, t] of targetTasks.entries()) {
-      orderMap[t.id] = { columnId: targetColId, order: i }
-    }
-    useProjectStore.setState((s) => ({
-      tasks: s.tasks.map((t) => {
-        const update = orderMap[t.id]
-        return update ? { ...t, columnId: update.columnId, order: update.order } : t
-      }),
-    }))
-
-    // Persist in background.
-    for (const [i, t] of targetTasks.entries()) {
-      window.electronAPI.moveTask(t.id, targetColId, i).catch((err) => {
-        console.error('Failed to persist task reorder:', err)
-      })
+    for (const colId of affectedColIds) {
+      const colTasks = tasks.filter((t) => t.columnId === colId).sort((a, b) => a.order - b.order)
+      for (const [i, t] of colTasks.entries()) {
+        window.electronAPI.moveTask(t.id, colId, i).catch((err) => {
+          console.error('Failed to persist task reorder:', err)
+        })
+      }
     }
 
     setActiveId(null)
@@ -214,6 +269,7 @@ export function Board(): React.ReactElement {
             sensors={sensors}
             collisionDetection={closestCorners}
             onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
             <SortableContext
@@ -231,6 +287,7 @@ export function Board(): React.ReactElement {
                   onDeleteTask={deleteTask}
                   onOpenChat={(task) => openPanel(task.id)}
                   onDeleteColumn={deleteColumn}
+                  onUpdateColumn={updateColumn}
                 />
               ))}
             </SortableContext>

@@ -5,7 +5,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
-import { Plus, Trash2, GripVertical } from 'lucide-react'
+import { Plus, Trash2, GripVertical, Pencil } from 'lucide-react'
 import { KanbanCard } from './Card'
 import {
   Dialog,
@@ -15,6 +15,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '../ui/dialog'
+import { Input } from '../ui/input'
 
 interface ColumnProps {
   column: Column
@@ -25,6 +26,7 @@ interface ColumnProps {
   onDeleteTask: (taskId: string) => void
   onOpenChat: (task: Task) => void
   onDeleteColumn: (columnId: string) => void
+  onUpdateColumn: (id: string, data: { title?: string; color?: string }) => void
 }
 
 export function KanbanColumn({
@@ -36,8 +38,11 @@ export function KanbanColumn({
   onDeleteTask,
   onOpenChat,
   onDeleteColumn,
+  onUpdateColumn,
 }: ColumnProps): React.ReactElement {
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState(column.title)
 
   const {
     setNodeRef,
@@ -53,6 +58,23 @@ export function KanbanColumn({
     transition,
   }
 
+  function handleSaveTitle() {
+    const trimmed = editTitle.trim()
+    if (trimmed && trimmed !== column.title) {
+      onUpdateColumn(column.id, { title: trimmed })
+    }
+    setIsEditing(false)
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') {
+      handleSaveTitle()
+    } else if (e.key === 'Escape') {
+      setEditTitle(column.title)
+      setIsEditing(false)
+    }
+  }
+
   return (
     <div ref={setNodeRef} style={style} className="group/column flex w-80 shrink-0 flex-col gap-3 rounded-2xl border border-border/40 bg-background/30 p-2 shadow-sm backdrop-blur-md transition-colors hover:bg-background/40">
       {/* Header: drag handle + title + count + delete */}
@@ -66,7 +88,38 @@ export function KanbanColumn({
           >
             <GripVertical className="h-4 w-4" />
           </button>
-          <CardTitle className="truncate text-sm font-medium">{column.title}</CardTitle>
+          {isEditing ? (
+            <Input
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              onBlur={handleSaveTitle}
+              onKeyDown={handleKeyDown}
+              className="w-full min-w-0 text-sm font-medium bg-transparent border-none focus:ring-0 focus-visible:ring-0"
+              autoFocus
+            />
+          ) : (
+            <>
+              <CardTitle
+                className="truncate text-sm font-medium cursor-pointer"
+                onDoubleClick={() => setIsEditing(true)}
+                title="Double-click to edit"
+              >
+                {column.title}
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 shrink-0 opacity-0 transition-opacity hover:bg-muted group-hover/column:opacity-100"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setIsEditing(true)
+                }}
+                title="Edit column title"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            </>
+          )}
           <span className="shrink-0 text-xs text-muted-foreground">{taskCount}</span>
         </div>
         <Button

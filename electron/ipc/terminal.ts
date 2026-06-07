@@ -84,8 +84,13 @@ export function registerTerminalHandlers(): void {
     async (_event: unknown, input: { taskId: string; projectPath: string; cols: number; rows: number }): Promise<void> => {
       const { taskId, projectPath, cols = 80, rows = 24 } = input
 
-      if (runs.has(taskId)) {
-        await killPtyAsync(taskId)
+      // Limit to 1 active session to save RAM
+      const activeTaskIds = Array.from(runs.keys())
+      for (const existingTaskId of activeTaskIds) {
+        await killPtyAsync(existingTaskId)
+        if (existingTaskId !== taskId) {
+          sendAgentStatus(existingTaskId, 'idle')
+        }
       }
       const ompPath = resolveOmpBinary()
       const cwd = projectPath && existsSync(projectPath) ? projectPath : process.cwd()

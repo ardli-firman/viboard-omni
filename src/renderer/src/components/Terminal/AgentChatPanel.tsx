@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -6,7 +6,7 @@ import '@xterm/xterm/css/xterm.css'
 import { useTerminalStore } from '../../stores/terminalStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { Button } from '../ui/button'
-import { X, Bot } from 'lucide-react'
+import { X, Terminal as TerminalIcon } from 'lucide-react'
 
 interface AgentChatPanelProps {
   taskId: string
@@ -85,17 +85,31 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
     term.loadAddon(webLinksAddon)
     term.open(terminalRef.current)
     
+    term.write('\x1b[36m[AgentChatPanel] Initializing terminal...\x1b[0m\r\n')
+
     // Initial fit and auto-start
     setTimeout(() => {
-      fitAddon.fit()
+      try {
+        fitAddon.fit()
+      } catch (e) {
+        // Ignore fit errors if container is not ready
+      }
+      
       const currentStatus = useTerminalStore.getState().status[taskId]
       const currentTask = useProjectStore.getState().tasks.find((t) => t.id === taskId)
-      if (!currentStatus || currentStatus === 'idle') {
+      
+      if (currentStatus !== 'running') {
         if (currentTask) {
+          term.write('\x1b[36m[AgentChatPanel] Requesting OMP agent spawn...\x1b[0m\r\n')
           window.electronAPI.spawnAgentPty(taskId, currentTask.projectPath, term.cols || 80, term.rows || 30)
+        } else {
+          term.write('\x1b[31m[AgentChatPanel] Error: Task not found in project store.\x1b[0m\r\n')
         }
+      } else {
+        term.write('\x1b[36m[AgentChatPanel] Agent is already running, waiting for output...\x1b[0m\r\n')
+        window.electronAPI.spawnAgentPty(taskId, currentTask?.projectPath || '', term.cols || 80, term.rows || 30)
       }
-    }, 10)
+    }, 100)
 
     xtermRef.current = term
     fitAddonRef.current = fitAddon
@@ -143,7 +157,7 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
 
   return (
     <div 
-      className={`relative flex flex-col border-t border-border/40 bg-[#1e1e1e] text-white transition-[height] duration-0 ${isResizing ? 'select-none' : ''}`}
+      className={`relative shrink-0 flex flex-col border-t border-border/40 bg-[#1e1e1e] text-white transition-[height] duration-0 ${isResizing ? 'select-none' : ''}`}
       style={{ height: panelHeight }}
     >
       <div 
@@ -152,7 +166,7 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
       />
       <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-2.5 shadow-sm bg-background">
         <div className="flex min-w-0 items-center gap-2">
-          <Bot className="h-4 w-4 shrink-0 text-primary" />
+          <TerminalIcon className="h-4 w-4 shrink-0 text-primary" />
           <span className="text-sm font-semibold">Terminal</span>
           {task && <span className="truncate text-xs text-muted-foreground">· {task.title}</span>}
           <span className="ml-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
