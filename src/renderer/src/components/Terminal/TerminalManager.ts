@@ -105,6 +105,55 @@ export class TerminalManager {
     // Open xterm into the offscreen container
     term.open(container)
 
+    // Enable keyboard copy & paste shortcuts
+    term.attachCustomKeyEventHandler((e) => {
+      // Copy: Ctrl+C (only if selection exists) or Ctrl+Shift+C
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        if (term.hasSelection()) {
+          if (e.type === 'keydown') {
+            const selection = term.getSelection()
+            navigator.clipboard.writeText(selection).catch((err) => {
+              console.error('Failed to copy selection to clipboard:', err)
+            })
+          }
+          return false // stop propagation and prevent default (don't send to PTY)
+        }
+      }
+
+      // Paste: Ctrl+V or Ctrl+Shift+V
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+        if (e.type === 'keydown') {
+          navigator.clipboard.readText().then((text) => {
+            if (text) term.paste(text)
+          }).catch((err) => {
+            console.error('Failed to paste from clipboard:', err)
+          })
+        }
+        return false // stop propagation and prevent default (don't send to PTY)
+      }
+
+      return true
+    })
+
+    // Enable Right-Click copy & paste (QuickEdit behavior)
+    container.addEventListener('contextmenu', (e) => {
+      e.preventDefault()
+      if (term.hasSelection()) {
+        const selection = term.getSelection()
+        navigator.clipboard.writeText(selection).then(() => {
+          term.clearSelection()
+        }).catch((err) => {
+          console.error('Failed to copy selection to clipboard:', err)
+        })
+      } else {
+        navigator.clipboard.readText().then((text) => {
+          if (text) term.paste(text)
+        }).catch((err) => {
+          console.error('Failed to paste from clipboard:', err)
+        })
+      }
+    })
+
     const session: TerminalSession = {
       terminal: term,
       fitAddon,

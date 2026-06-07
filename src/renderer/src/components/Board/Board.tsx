@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { Task } from '@shared/types'
 import { KanbanColumn } from './Column'
 import { TaskModal } from '../Modal/TaskModal'
@@ -25,8 +26,7 @@ import {
 } from '@dnd-kit/sortable'
 import { KanbanCard } from './Card'
 import { Button } from '../ui/button'
-import { ScrollArea, ScrollBar } from '../ui/scroll-area'
-import { Plus } from 'lucide-react'
+import { Minus, Plus, Maximize2, RotateCcw } from 'lucide-react'
 
 export function Board(): React.ReactElement {
   const {
@@ -53,6 +53,13 @@ export function Board(): React.ReactElement {
   // updated synchronously on drop for realtime UI.
   const [columnOrder, setColumnOrder] = useState<string[]>([])
   const [syncedSignature, setSyncedSignature] = useState<string>('')
+  const [scale, setScale] = useState(1)
+  const [translateX, setTranslateX] = useState(0)
+  const [translateY, setTranslateY] = useState(0)
+  const [isPanning, setIsPanning] = useState(false)
+  const panStartRef = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null)
+  const boardRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const sortedColumnsFromStore = useMemo(
     () => [...columns].sort((a, b) => a.order - b.order),
@@ -272,26 +279,188 @@ export function Board(): React.ReactElement {
     }
   }
 
+  function handleWheel(e: React.WheelEvent): void {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault()
+      e.stopPropagation()
+      const delta = e.deltaY > 0 ? -0.05 : 0.05
+      setScale(prev => Math.max(0.1, Math.min(2, prev + delta)))
+    }
+  }
+
+  function zoomIn(): void {
+    setScale(prev => Math.min(2, prev + 0.1))
+  }
+
+  function zoomOut(): void {
+    setScale(prev => Math.max(0.1, prev - 0.1))
+  }
+
+  function resetZoom(): void {
+    setScale(1)
+    setTranslateX(0)
+    setTranslateY(0)
+  }
+
+  function autoFit(): void {
+    if (!boardRef.current || !containerRef.current) return
+    const boardWidth = boardRef.current.scrollWidth
+    const containerWidth = containerRef.current.clientWidth
+    if (boardWidth > 0 && containerWidth > 0) {
+      const padding = 48
+      const fitScale = Math.max(0.1, Math.min(1, (containerWidth - padding) / boardWidth))
+      setScale(fitScale)
+      setTranslateX(0)
+      setTranslateY(0)
+    }
+  }
+
+  function handleMouseDown(e: React.MouseEvent): void {
+    if (e.button === 1) {
+      e.preventDefault()
+      setIsPanning(true)
+      panStartRef.current = { x: e.clientX, y: e.clientY, tx: translateX, ty: translateY }
+    }
+  }
+
+  function handleMouseMove(e: React.MouseEvent): void {
+    if (!panStartRef.current) return
+    const dx = e.clientX - panStartRef.current.x
+    const dy = e.clientY - panStartRef.current.y
+    setTranslateX(panStartRef.current.tx + dx)
+    setTranslateY(panStartRef.current.ty + dy)
+  }
+
+  function handleMouseUp(): void {
+    setIsPanning(false)
+    panStartRef.current = null
+  }
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent): void {
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key) {
+          case '=':
+          case '+':
+            e.preventDefault()
+            zoomIn()
+            break
+          case '-':
+            e.preventDefault()
+            zoomOut()
+            break
+          case '0':
+            e.preventDefault()
+            resetZoom()
+            break
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    function preventWheel(e: WheelEvent): void {
+      if (e.ctrlKey || e.metaKey) e.preventDefault()
+    }
+    el.addEventListener('wheel', preventWheel, { passive: false })
+    return () => el.removeEventListener('wheel', preventWheel)
+  }, [])
+
   const activeTask = activeId && activeType === 'task' ? tasks.find((t) => t.id === activeId) : null
   const activeColumn = activeId && activeType === 'column' ? sortedColumnsFromStore.find((c) => c.id === activeId) : null
 
   return (
     <div className="flex h-full flex-col bg-transparent">
       <div className="z-10 flex h-14 shrink-0 items-center justify-between border-b border-border/25 bg-background/40 px-6 backdrop-blur-xl">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <h2 className="text-sm font-bold uppercase tracking-[0.08em] text-muted-foreground">Kanban Board</h2>
         </div>
-        <Button 
-          variant="default" 
-          size="sm" 
-          className="rounded-xl font-bold shadow-sm transition-all hover:scale-[1.02] hover:shadow-md active:scale-98" 
+        <Button
+          variant="default"
+          size="sm"
+          className="rounded-xl font-bold shadow-sm transition-all hover:scale-[1.02] hover:shadow-md active:scale-98"
           onClick={() => setColumnModalOpen(true)}
         >
           <Plus className="mr-1.5 h-4 w-4" />Add Column
         </Button>
       </div>
-      <ScrollArea className="flex-1">
-        <div className="flex gap-5 p-6 min-h-full">
+      <div
+        ref={containerRef}
+        className="relative flex-1 select-none overflow-hidden"
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        style={{ cursor: isPanning ? 'grabbing' : undefined }}
+      >
+        {/* Floating Compact Zoom Controls */}
+        <div
+          className="absolute bottom-6 right-6 z-20 flex items-center gap-1 rounded-xl border border-border/40 bg-background/60 p-1 shadow-lg backdrop-blur-md transition-all hover:bg-background/80 hover:shadow-xl"
+          onMouseDown={(e) => e.stopPropagation()}
+          onWheel={(e) => e.stopPropagation()}
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+            onClick={zoomOut}
+            disabled={scale <= 0.1}
+            title="Zoom out (Ctrl+-)"
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </Button>
+          <button
+            onClick={resetZoom}
+            className="min-w-12 px-1 text-center text-xs font-semibold tabular-nums text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            title="Reset zoom to 100% (Ctrl+0)"
+          >
+            {Math.round(scale * 100)}%
+          </button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+            onClick={zoomIn}
+            disabled={scale >= 2}
+            title="Zoom in (Ctrl++)"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+          <div className="h-4 w-px bg-border/40 mx-0.5" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+            onClick={autoFit}
+            title="Fit board to viewport"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+            onClick={resetZoom}
+            disabled={scale === 1 && translateX === 0 && translateY === 0}
+            title="Reset position and zoom (Ctrl+0)"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+
+        <div
+          ref={boardRef}
+          className="flex gap-5 p-6 min-h-max w-max"
+          style={{
+            transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
+            transformOrigin: 'top left',
+          }}
+        >
           <DndContext
             sensors={sensors}
             collisionDetection={closestCorners}
@@ -318,26 +487,33 @@ export function Board(): React.ReactElement {
                 />
               ))}
             </SortableContext>
-            <DragOverlay>
-              {activeTask ? (
-                <KanbanCard
-                  task={activeTask}
-                  onEdit={() => {}}
-                  onDelete={() => {}}
-                  onOpenChat={() => {}}
-                />
-              ) : activeColumn ? (
-                <div className="flex w-72 shrink-0 scale-105 flex-col gap-3 rounded-2xl border border-primary/20 bg-background/60 p-4 opacity-95 shadow-xl backdrop-blur-xl transition-transform">
-                  <div className="text-base font-bold text-primary">{activeColumn.title}</div>
-                  <div className="text-sm font-medium text-muted-foreground">
-                    {tasks.filter((t) => t.columnId === activeColumn.id).length} tasks
+            {createPortal(
+              <DragOverlay>
+                {activeTask ? (
+                  <div style={{ width: '292px', transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+                    <KanbanCard
+                      task={activeTask}
+                      onEdit={() => {}}
+                      onDelete={() => {}}
+                      onOpenChat={() => {}}
+                    />
                   </div>
-                </div>
-              ) : null}
-            </DragOverlay>
+                ) : activeColumn ? (
+                  <div style={{ width: '288px', transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+                    <div className="flex w-full shrink-0 scale-105 flex-col gap-3 rounded-2xl border border-primary/20 bg-background/60 p-4 opacity-95 shadow-xl backdrop-blur-xl transition-transform">
+                      <div className="text-base font-bold text-primary">{activeColumn.title}</div>
+                      <div className="text-sm font-medium text-muted-foreground">
+                        {tasks.filter((t) => t.columnId === activeColumn.id).length} tasks
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </DragOverlay>,
+              document.body
+            )}
           </DndContext>
           {sortedColumns.length === 0 && (
-            <div className="flex flex-1 items-center justify-center">
+            <div className="flex min-w-100 items-center justify-center">
               <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border/60 bg-background/20 px-10 py-8 text-center backdrop-blur-sm">
                 <p className="text-sm font-medium text-muted-foreground">
                   No columns in this board
@@ -349,8 +525,7 @@ export function Board(): React.ReactElement {
             </div>
           )}
         </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+      </div>
       <TaskModal
         open={taskModalOpen}
         onOpenChange={setTaskModalOpen}
