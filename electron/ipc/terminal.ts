@@ -250,13 +250,25 @@ export function registerTerminalHandlers(): void {
         const sessionFile = path.join(sessionDir, `${taskId}.jsonl`)
         
         const ompArgs = process.platform === 'win32' ? ['/c', ompPath, '--resume', sessionFile] : ['--resume', sessionFile]
+        
+        // Clean environment variables to prevent Electron/Vite dev tooling pollution
+        const cleanEnv = { ...process.env }
+        delete cleanEnv.NODE_OPTIONS
+        delete cleanEnv.ELECTRON_RUN_AS_NODE
+        delete cleanEnv.ELECTRON_NO_ASAR
+        for (const key of Object.keys(cleanEnv)) {
+          if (key.startsWith('VITE_') || key.startsWith('ELECTRON_')) {
+            delete cleanEnv[key]
+          }
+        }
+
         const childProcess = pty.spawn(process.platform === 'win32' ? 'cmd.exe' : ompPath, ompArgs, {
           name: 'xterm-color',
           cols,
           rows,
           cwd,
           env: {
-            ...process.env,
+            ...cleanEnv,
             OMP_TASK_ID: taskId,
             OMP_PROJECT_PATH: cwd,
             OMP_SESSION_PER_TASK: '1',
