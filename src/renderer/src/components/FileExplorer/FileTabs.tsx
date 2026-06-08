@@ -1,5 +1,5 @@
 import { type ReactElement } from 'react'
-import { X, FileText, FolderTree, GitCompare, GitBranch } from 'lucide-react'
+import { X, FileText, FolderTree, GitCompare } from 'lucide-react'
 import { useFileExplorerStore } from '../../stores/fileExplorerStore'
 
 export function FileTabs(): ReactElement {
@@ -13,7 +13,6 @@ export function FileTabs(): ReactElement {
   const setViewMode = useFileExplorerStore((s) => s.setViewMode)
 
   const showExplorer = viewMode === 'explorer'
-  const showGit = viewMode === 'git'
   const showFileTabs = openFiles.length > 0
 
   return (
@@ -25,15 +24,6 @@ export function FileTabs(): ReactElement {
       >
         <FolderTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground/75" />
         <span>Explorer</span>
-      </TabButton>
-
-      <TabButton
-        active={showGit}
-        onClick={() => setViewMode('git')}
-        title="Git / Source Control"
-      >
-        <GitBranch className="h-3.5 w-3.5 shrink-0 text-muted-foreground/75" />
-        <span>Git</span>
       </TabButton>
 
       {showFileTabs &&

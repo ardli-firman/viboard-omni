@@ -50,7 +50,7 @@ interface FileExplorerState {
   panelOpen: boolean
   rootPath: string | null
   panelWidth: number
-  viewMode: 'explorer' | 'git' | 'editor'
+  viewMode: 'explorer' | 'editor'
   loadTree: (rootPath: string) => Promise<void>
   refreshGitStatus: () => Promise<void>
   toggleExpand: (path: string) => void
@@ -64,7 +64,7 @@ interface FileExplorerState {
   setRootPath: (path: string | null) => void
   setPanelWidth: (width: number) => void
   resetPanelWidth: () => void
-  setViewMode: (mode: 'explorer' | 'git' | 'editor') => void
+  setViewMode: (mode: 'explorer' | 'editor') => void
 }
 
 export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({

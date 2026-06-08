@@ -1,5 +1,5 @@
-import { type ReactElement, useEffect, useRef, useCallback } from 'react'
-import { PanelRightClose, PanelRightOpen, RotateCw } from 'lucide-react'
+import { type ReactElement, useEffect, useRef, useCallback, useState } from 'react'
+import { PanelRightClose, PanelRightOpen, RotateCw, ChevronDown } from 'lucide-react'
 import { useFileExplorerStore } from '../../stores/fileExplorerStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { FileTabs } from './FileTabs'
@@ -13,6 +13,10 @@ const COLLAPSED_WIDTH = 48
 
 export function ExplorerPanel(): ReactElement {
   const panelOpen = useFileExplorerStore((s) => s.panelOpen)
+  const [filesExpanded, setFilesExpanded] = useState(true)
+  const [gitExpanded, setGitExpanded] = useState(true)
+  const [filesHeight, setFilesHeight] = useState(380)
+  const [isDraggingDivider, setIsDraggingDivider] = useState(false)
   const togglePanel = useFileExplorerStore((s) => s.togglePanel)
   const activeFilePath = useFileExplorerStore((s) => s.activeFilePath)
   const openFiles = useFileExplorerStore((s) => s.openFiles)
@@ -91,6 +95,43 @@ export function ExplorerPanel(): ReactElement {
     resetPanelWidth()
   }, [resetPanelWidth])
 
+  // Vertical Divider Drag-to-resize logic (Files vs Source Control)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const startY = useRef(0)
+  const startHeight = useRef(0)
+
+  const onDividerPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault()
+      setIsDraggingDivider(true)
+      startY.current = e.clientY
+      startHeight.current = filesHeight
+      ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+    },
+    [filesHeight],
+  )
+
+  const onDividerPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (startY.current === 0 || !containerRef.current) return
+      const deltaY = e.clientY - startY.current
+      const containerHeight = containerRef.current.getBoundingClientRect().height
+      // Enforce bounds: min height 100px, max height containerHeight - 120px
+      const nextHeight = Math.max(100, Math.min(containerHeight - 120, startHeight.current + deltaY))
+      setFilesHeight(nextHeight)
+    },
+    [],
+  )
+
+  const onDividerPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      setIsDraggingDivider(false)
+      startY.current = 0
+      ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
+    },
+    [],
+  )
+
   const widthPx = panelOpen ? panelWidth : COLLAPSED_WIDTH
 
   return (
@@ -151,8 +192,79 @@ export function ExplorerPanel(): ReactElement {
           <>
             <FileTabs />
             <div className="flex flex-1 flex-col overflow-hidden min-h-0 bg-background/5">
-              {viewMode === 'explorer' && <FileTree />}
-              {viewMode === 'git' && <GitPanel />}
+              {viewMode === 'explorer' && (
+                <div ref={containerRef} className="flex flex-1 flex-col overflow-hidden divide-y divide-border/10 relative">
+                  {/* Files Section */}
+                  <div
+                    className="flex flex-col min-h-0 overflow-hidden shrink-0"
+                    style={{
+                      height: filesExpanded ? (gitExpanded ? `${filesHeight}px` : 'auto') : '32px',
+                      flex: filesExpanded && !gitExpanded ? '1 1 0%' : 'none'
+                    }}
+                  >
+                    <button
+                      onClick={() => setFilesExpanded(!filesExpanded)}
+                      className="flex h-8 w-full cursor-pointer select-none items-center justify-between bg-background/15 px-3.5 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/75 hover:bg-primary/5 hover:text-foreground border-b border-border/5"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <ChevronDown
+                          className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                            filesExpanded ? '' : '-rotate-90'
+                          }`}
+                        />
+                        <span>Files</span>
+                      </div>
+                    </button>
+                    {filesExpanded && (
+                      <div className="flex-1 overflow-hidden min-h-0">
+                        <FileTree />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Vertical Resizer handle */}
+                  {filesExpanded && gitExpanded && (
+                    <div
+                      onPointerDown={onDividerPointerDown}
+                      onPointerMove={onDividerPointerMove}
+                      onPointerUp={onDividerPointerUp}
+                      onPointerCancel={onDividerPointerUp}
+                      className={`h-[4px] cursor-row-resize transition-colors ${
+                        isDraggingDivider ? 'bg-primary/50' : 'bg-border/20 hover:bg-primary/30'
+                      }`}
+                      title="Drag to resize sections"
+                    />
+                  )}
+
+                  {/* Git Section */}
+                  <div
+                    className="flex flex-col min-h-0 overflow-hidden"
+                    style={{
+                      height: gitExpanded ? 'auto' : '32px',
+                      flex: gitExpanded ? '1 1 0%' : 'none'
+                    }}
+                  >
+                    <button
+                      onClick={() => setGitExpanded(!gitExpanded)}
+                      className="flex h-8 w-full cursor-pointer select-none items-center justify-between bg-background/15 px-3.5 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/75 hover:bg-primary/5 hover:text-foreground border-b border-border/5"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <ChevronDown
+                          className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                            gitExpanded ? '' : '-rotate-90'
+                          }`}
+                        />
+                        <span>Source Control</span>
+                      </div>
+                    </button>
+                    {gitExpanded && (
+                      <div className="flex-1 overflow-hidden min-h-0">
+                        <GitPanel />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               {viewMode === 'editor' && activeFile && <FileEditor file={activeFile} />}
             </div>
           </>
