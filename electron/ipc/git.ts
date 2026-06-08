@@ -179,5 +179,31 @@ export function registerGitHandlers(): void {
       return res.success ? { success: true } : { success: false, error: res.stderr }
     },
   )
+
+  ipcMain.handle('git:getBranches', async (_event: unknown, dirPath: string): Promise<string[]> => {
+    try {
+      const { stdout } = await execFileAsync('git', ['branch', '--format=%(refname:short)'], { cwd: dirPath })
+      return stdout.trim().split('\n').map((b) => b.trim()).filter(Boolean)
+    } catch (err) {
+      console.error('[git] Failed to get branches:', err)
+      return []
+    }
+  })
+
+  ipcMain.handle(
+    'git:checkoutBranch',
+    async (_event: unknown, dirPath: string, branchName: string): Promise<{ success: boolean; error?: string }> => {
+      const res = await runGit(dirPath, ['checkout', branchName])
+      return res.success ? { success: true } : { success: false, error: res.stderr }
+    },
+  )
+
+  ipcMain.handle(
+    'git:createBranch',
+    async (_event: unknown, dirPath: string, branchName: string): Promise<{ success: boolean; error?: string }> => {
+      const res = await runGit(dirPath, ['checkout', '-b', branchName])
+      return res.success ? { success: true } : { success: false, error: res.stderr }
+    },
+  )
 }
 

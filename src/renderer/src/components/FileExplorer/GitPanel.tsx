@@ -1,4 +1,4 @@
-import { type ReactElement, useState, useEffect } from 'react'
+import { type ReactElement, useState, useEffect, useCallback } from 'react'
 import {
   GitBranch,
   RefreshCw,
@@ -11,12 +11,20 @@ import {
   AlertTriangle,
   Loader2,
   Check,
+  ChevronDown,
+  X,
 } from 'lucide-react'
 import { useFileExplorerStore } from '../../stores/fileExplorerStore'
 import { Button } from '../ui/button'
 import { Textarea } from '../ui/textarea'
 import { Badge } from '../ui/badge'
 import { toast } from 'sonner'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '../ui/dropdown-menu'
 
 export function GitPanel(): ReactElement {
   const rootPath = useFileExplorerStore((s) => s.rootPath)
@@ -31,6 +39,20 @@ export function GitPanel(): ReactElement {
   const [activeOp, setActiveOp] = useState<string | null>(null)
   const [discardConfirmFile, setDiscardConfirmFile] = useState<string | null>(null)
   const [discardAllConfirm, setDiscardAllConfirm] = useState(false)
+
+  const [branches, setBranches] = useState<string[]>([])
+  const [isCreatingBranch, setIsCreatingBranch] = useState(false)
+  const [newBranchName, setNewBranchName] = useState('')
+
+  const loadBranches = useCallback(async () => {
+    if (!rootPath || gitBranch === '') return
+    try {
+      const list = await window.electronAPI.gitGetBranches(rootPath)
+      setBranches(list)
+    } catch (err) {
+      console.error(err)
+    }
+  }, [rootPath, gitBranch])
 
   // Auto-refresh Git status on mount and when root path changes
   useEffect(() => {
@@ -72,6 +94,7 @@ export function GitPanel(): ReactElement {
       if (res.success) {
         toast.success(`${name} completed successfully`)
         await refreshGitStatus()
+        await loadBranches()
         return true
       } else {
         toast.error(`Failed ${name.toLowerCase()}: ${res.error || 'Unknown error'}`)
@@ -83,6 +106,27 @@ export function GitPanel(): ReactElement {
     } finally {
       setLoading(false)
       setActiveOp(null)
+    }
+  }
+
+  const handleSwitchBranch = async (name: string) => {
+    if (name === gitBranch) return
+    await runOperation('Switch Branch', () =>
+      window.electronAPI.gitCheckoutBranch(rootPath!, name),
+    )
+  }
+
+  const handleCreateBranch = async () => {
+    if (!newBranchName.trim()) {
+      toast.error('Branch name cannot be empty')
+      return
+    }
+    const success = await runOperation('Create Branch', () =>
+      window.electronAPI.gitCreateBranch(rootPath!, newBranchName.trim()),
+    )
+    if (success) {
+      setNewBranchName('')
+      setIsCreatingBranch(false)
     }
   }
 
@@ -239,13 +283,81 @@ export function GitPanel(): ReactElement {
     <div className="flex h-full flex-col overflow-hidden text-xs">
       {/* Remote Branch and Sync Toolbar */}
       <div className="flex items-center justify-between border-b border-border/10 bg-background/10 px-4 py-2 shrink-0">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <GitBranch className="h-4 w-4 shrink-0 text-primary" />
-          <span className="truncate font-bold text-foreground select-none" title={gitBranch || 'HEAD'}>
-            {gitBranch}
-          </span>
-        </div>
-        <div className="flex items-center gap-1">
+        {isCreatingBranch ? (
+          <div className="flex items-center gap-1 w-full min-w-0 mr-2">
+            <GitBranch className="h-4 w-4 shrink-0 text-primary animate-pulse" />
+            <input
+              type="text"
+              placeholder="Branch name..."
+              value={newBranchName}
+              onChange={(e) => setNewBranchName(e.target.value)}
+              className="flex-1 bg-background/50 border border-border/30 rounded px-2 py-0.5 text-xs focus:outline-none focus:border-primary text-foreground min-w-0"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleCreateBranch()
+                if (e.key === 'Escape') setIsCreatingBranch(false)
+              }}
+            />
+            <button
+              onClick={handleCreateBranch}
+              className="p-1 text-emerald-500 hover:bg-emerald-500/10 rounded-lg shrink-0 transition-colors cursor-pointer"
+              title="Create branch"
+            >
+              <Check className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => setIsCreatingBranch(false)}
+              className="p-1 text-muted-foreground hover:bg-accent rounded-lg shrink-0 transition-colors cursor-pointer"
+              title="Cancel"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-0.5 min-w-0 max-w-[65%]">
+            <GitBranch className="h-4 w-4 shrink-0 text-primary" />
+            <DropdownMenu onOpenChange={(open) => { if (open) void loadBranches() }}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="flex items-center gap-1 min-w-0 font-bold text-foreground hover:bg-primary/10 px-1.5 py-0.5 rounded-lg select-none transition-colors text-left text-xs cursor-pointer"
+                  title="Switch branch"
+                >
+                  <span className="truncate">{gitBranch}</span>
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-48 max-h-60 overflow-y-auto">
+                {branches.length === 0 ? (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground italic select-none">No branches found</div>
+                ) : (
+                  branches.map((b) => (
+                    <DropdownMenuItem
+                      key={b}
+                      onClick={() => void handleSwitchBranch(b)}
+                      className={`cursor-pointer text-xs ${
+                        b === gitBranch
+                          ? 'text-primary font-bold bg-primary/10 hover:bg-primary/15'
+                          : ''
+                      }`}
+                    >
+                      <GitBranch className="h-3.5 w-3.5 mr-1.5 shrink-0 text-muted-foreground/60" />
+                      <span className="truncate">{b}</span>
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <button
+              onClick={() => setIsCreatingBranch(true)}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground/60 transition-all hover:bg-primary/10 hover:text-primary active:scale-95 shrink-0 cursor-pointer"
+              title="Create new branch"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+        {!isCreatingBranch && (
+          <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={handleFetch}
             disabled={loading}
@@ -283,6 +395,7 @@ export function GitPanel(): ReactElement {
             )}
           </button>
         </div>
+      )}
       </div>
 
       {/* Scrollable Git Panels */}

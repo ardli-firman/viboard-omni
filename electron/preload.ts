@@ -62,6 +62,12 @@ const api = {
     ipcRenderer.invoke('git:fetch', dirPath),
   gitInit: (dirPath: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('git:init', dirPath),
+  gitGetBranches: (dirPath: string): Promise<string[]> =>
+    ipcRenderer.invoke('git:getBranches', dirPath),
+  gitCheckoutBranch: (dirPath: string, branchName: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('git:checkoutBranch', dirPath, branchName),
+  gitCreateBranch: (dirPath: string, branchName: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('git:createBranch', dirPath, branchName),
 
   getColumns: (projectPath?: string): Promise<Column[]> => ipcRenderer.invoke('column:list', projectPath),
   createColumn: (data: { title: string; order: number; color?: string; projectPath?: string }): Promise<Column> =>
