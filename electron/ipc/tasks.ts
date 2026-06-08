@@ -187,33 +187,17 @@ export function registerTaskHandlers(): void {
   ipcMain.handle(
     'task:reorder',
     (_event: unknown, items: { id: string; columnId: string; order: number }[]): void => {
-      const fs = require('node:fs')
-      const path = require('node:path')
-      const logPath = 'C:\\Users\\kulit\\.gemini\\antigravity\\brain\\acf73cca-6d55-48f7-aebc-fd1192b79d9e\\scratch\\ipc_log.txt'
-      
-      const log = (msg: string): void => {
-        try {
-          fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${msg}\n`)
-        } catch (e) {
-          console.error('Failed to write log:', e)
-        }
-      }
-
-      log(`[task:reorder] Called with ${items.length} items: ${JSON.stringify(items)}`)
       const db = getDatabase()
       try {
         const stmt = db.prepare('UPDATE tasks SET column_id = ?, "order" = ?, updated_at = ? WHERE id = ?')
         const now = Date.now()
         const txn = db.transaction((rows: { id: string; columnId: string; order: number }[]) => {
           for (const row of rows) {
-            log(`Running stmt: UPDATE tasks SET column_id = '${row.columnId}', "order" = ${row.order} WHERE id = '${row.id}'`)
             stmt.run(row.columnId, row.order, now, row.id)
           }
         })
         txn(items)
-        log(`[task:reorder] Transaction completed successfully`)
-      } catch (err: any) {
-        log(`[task:reorder] Transaction FAILED: ${err.message}\n${err.stack}`)
+      } catch (err) {
         console.error('[task:reorder] Failed:', err)
         throw err
       }

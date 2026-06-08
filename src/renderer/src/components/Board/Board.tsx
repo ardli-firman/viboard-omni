@@ -207,6 +207,7 @@ export function Board(): React.ReactElement {
 
   function handleDragEnd(event: DragEndEvent): void {
     const { active, over } = event
+
     window.electronAPI.log.info('[Board] handleDragEnd called:', {
       activeId: active.id,
       overId: over?.id,
@@ -268,6 +269,7 @@ export function Board(): React.ReactElement {
     // Task reorder
     const storeTasks = useProjectStore.getState().tasks
     const activeTask = storeTasks.find((t) => t.id === active.id)
+
     window.electronAPI.log.info('[Board] handleDragEnd Task reorder state:', {
       activeTaskFound: !!activeTask,
       activeTaskColumn: activeTask?.columnId,
@@ -300,14 +302,9 @@ export function Board(): React.ReactElement {
     window.electronAPI.log.info('[Board] handleDragEnd tasksToUpdate:', tasksToUpdate)
 
     if (tasksToUpdate.length > 0) {
-      window.electronAPI.log.info('[Board] handleDragEnd calling reorderTasks')
-      window.electronAPI.reorderTasks(tasksToUpdate)
-        .then(() => {
-          window.electronAPI.log.info('[Board] handleDragEnd reorderTasks SUCCESS')
-        })
-        .catch((err) => {
-          window.electronAPI.log.error('[Board] handleDragEnd reorderTasks FAILED:', err)
-        })
+      window.electronAPI.reorderTasks(tasksToUpdate).catch((err) => {
+        console.error('Failed to persist task reorder:', err)
+      })
     }
 
     dragStartColumnRef.current = null

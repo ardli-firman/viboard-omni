@@ -157,13 +157,22 @@ const api = {
   setTheme: (theme: ThemeMode): Promise<void> => ipcRenderer.invoke('theme:set', theme),
   log: {
     info: (...args: unknown[]): void => {
-      ipcRenderer.send('log:info', ...args)
+      const isDev = process.env.NODE_ENV === 'development' || !!(process as any).defaultApp
+      if (isDev) {
+        ipcRenderer.send('log:info', ...args)
+      }
     },
     error: (...args: unknown[]): void => {
-      ipcRenderer.send('log:error', ...args)
+      const isDev = process.env.NODE_ENV === 'development' || !!(process as any).defaultApp
+      if (isDev) {
+        ipcRenderer.send('log:error', ...args)
+      }
     },
     warn: (...args: unknown[]): void => {
-      ipcRenderer.send('log:warn', ...args)
+      const isDev = process.env.NODE_ENV === 'development' || !!(process as any).defaultApp
+      if (isDev) {
+        ipcRenderer.send('log:warn', ...args)
+      }
     },
   },
 }
