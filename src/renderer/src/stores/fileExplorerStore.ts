@@ -44,11 +44,13 @@ interface FileExplorerState {
   treeError: string | null
   expandedPaths: Set<string>
   gitStatus: Record<string, string>
+  gitBranch: string | null
   openFiles: OpenFile[]
   activeFilePath: string | null
   panelOpen: boolean
   rootPath: string | null
   panelWidth: number
+  viewMode: 'explorer' | 'git' | 'editor'
   loadTree: (rootPath: string) => Promise<void>
   refreshGitStatus: () => Promise<void>
   toggleExpand: (path: string) => void
@@ -62,6 +64,7 @@ interface FileExplorerState {
   setRootPath: (path: string | null) => void
   setPanelWidth: (width: number) => void
   resetPanelWidth: () => void
+  setViewMode: (mode: 'explorer' | 'git' | 'editor') => void
 }
 
 export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
@@ -70,12 +73,18 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   treeError: null,
   expandedPaths: new Set<string>(),
   gitStatus: {},
+  gitBranch: null,
   openFiles: [],
   activeFilePath: null,
   panelOpen: true,
   rootPath: null,
-
   panelWidth: 320,
+  viewMode: 'explorer',
+
+  setViewMode: (viewMode) => {
+    set({ viewMode })
+  },
+
   loadTree: async (rootPath: string) => {
     set({ treeLoading: true, treeError: null, rootPath })
     try {
@@ -95,7 +104,13 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
     if (!rootPath) return
     try {
       const status = await window.electronAPI.getGitStatus(rootPath)
-      set({ gitStatus: status })
+      let branch: string | null = null
+      try {
+        branch = await window.electronAPI.getGitBranch(rootPath)
+      } catch (err) {
+        // Ignored
+      }
+      set({ gitStatus: status, gitBranch: branch || null })
     } catch (err) {
       // Ignored
     }
@@ -118,7 +133,7 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
     const existing = state.openFiles.find((f) => f.path === path)
 
     if (existing) {
-      set({ activeFilePath: path })
+      set({ activeFilePath: path, viewMode: 'editor' })
       return
     }
     const ext = '.' + (name.split('.').pop() ?? '').toLowerCase()
@@ -139,6 +154,7 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
     set({
       openFiles: [...state.openFiles, placeholder],
       activeFilePath: path,
+      viewMode: 'editor',
     })
 
     try {
@@ -160,10 +176,10 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
         const content = await window.electronAPI.readFile(path)
         const status = state.gitStatus[relativePath]
         const isModified = status?.includes('M')
-        
+
         let orig: string | null = null
         let shouldDiff = false
-        
+
         if (isModified && state.rootPath) {
           try {
             orig = await window.electronAPI.getGitHeadContent(state.rootPath, relativePath)
@@ -191,9 +207,7 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
     } catch (err) {
       set((s) => ({
         openFiles: s.openFiles.map((f) =>
-          f.path === path
-            ? { ...f, loading: false, error: String(err) }
-            : f,
+          f.path === path ? { ...f, loading: false, error: String(err) } : f,
         ),
       }))
       toast.error(`Failed to open ${name}`)
@@ -204,16 +218,20 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
     set((state) => {
       const remaining = state.openFiles.filter((f) => f.path !== path)
       let nextActive = state.activeFilePath
+      let nextViewMode = state.viewMode
+
       if (state.activeFilePath === path) {
         if (remaining.length === 0) {
           nextActive = null
+          nextViewMode = 'explorer'
         } else {
           const idx = state.openFiles.findIndex((f) => f.path === path)
           const fallback = remaining[Math.min(idx, remaining.length - 1)]
           nextActive = fallback?.path ?? null
+          nextViewMode = 'editor'
         }
       }
-      return { openFiles: remaining, activeFilePath: nextActive }
+      return { openFiles: remaining, activeFilePath: nextActive, viewMode: nextViewMode }
     })
   },
 
@@ -241,10 +259,17 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
       if (!state.rootPath) return
       const orig = await window.electronAPI.getGitHeadContent(state.rootPath, file.relativePath)
       const currentContent = await window.electronAPI.readFile(file.path)
-      
+
       set((s) => ({
         openFiles: s.openFiles.map((f) =>
-          f.path === path ? { ...f, diffMode: true, originalContent: orig ?? '', content: currentContent ?? f.content } : f,
+          f.path === path
+            ? {
+                ...f,
+                diffMode: true,
+                originalContent: orig ?? '',
+                content: currentContent ?? f.content,
+              }
+            : f,
         ),
       }))
     } catch (err) {
@@ -253,11 +278,15 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   },
 
   setActiveFile: (path) => {
-    set({ activeFilePath: path })
+    if (path === null) {
+      set({ activeFilePath: null, viewMode: 'explorer' })
+    } else {
+      set({ activeFilePath: path, viewMode: 'editor' })
+    }
   },
 
   closeAllFiles: () => {
-    set({ openFiles: [], activeFilePath: null })
+    set({ openFiles: [], activeFilePath: null, viewMode: 'explorer' })
   },
 
   togglePanel: () => {
@@ -289,4 +318,5 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   resetPanelWidth: () => {
     set({ panelWidth: 320 })
   },
-}))
+})
+)

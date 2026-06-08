@@ -5,6 +5,7 @@ import { useProjectStore } from '../../stores/projectStore'
 import { FileTabs } from './FileTabs'
 import { FileTree } from './FileTree'
 import { FileEditor } from './FileEditor'
+import { GitPanel } from './GitPanel'
 
 const MIN_WIDTH = 200
 const MAX_WIDTH = 640
@@ -48,9 +49,8 @@ export function ExplorerPanel(): ReactElement {
     }
   }, [rootPath, loadTree])
 
+  const viewMode = useFileExplorerStore((s) => s.viewMode)
   const activeFile = openFiles.find((f) => f.path === activeFilePath)
-  const showEditor = activeFilePath !== null && activeFile !== undefined
-  const activeView = showEditor ? 'editor' : 'explorer'
 
   // Drag-to-resize logic
   const isDragging = useRef(false)
@@ -151,13 +151,9 @@ export function ExplorerPanel(): ReactElement {
           <>
             <FileTabs />
             <div className="flex flex-1 flex-col overflow-hidden min-h-0 bg-background/5">
-              {activeView === 'explorer' ? (
-                <FileTree />
-              ) : activeFile ? (
-                <FileEditor file={activeFile} />
-              ) : (
-                <FileTree />
-              )}
+              {viewMode === 'explorer' && <FileTree />}
+              {viewMode === 'git' && <GitPanel />}
+              {viewMode === 'editor' && activeFile && <FileEditor file={activeFile} />}
             </div>
           </>
         )}

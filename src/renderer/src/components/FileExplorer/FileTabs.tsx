@@ -1,5 +1,5 @@
 import { type ReactElement } from 'react'
-import { X, FileText, FolderTree, GitCompare } from 'lucide-react'
+import { X, FileText, FolderTree, GitCompare, GitBranch } from 'lucide-react'
 import { useFileExplorerStore } from '../../stores/fileExplorerStore'
 
 export function FileTabs(): ReactElement {
@@ -9,24 +9,36 @@ export function FileTabs(): ReactElement {
   const closeFile = useFileExplorerStore((s) => s.closeFile)
   const gitStatus = useFileExplorerStore((s) => s.gitStatus)
   const toggleDiffMode = useFileExplorerStore((s) => s.toggleDiffMode)
+  const viewMode = useFileExplorerStore((s) => s.viewMode)
+  const setViewMode = useFileExplorerStore((s) => s.setViewMode)
 
-  const showExplorer = activeFilePath === null
+  const showExplorer = viewMode === 'explorer'
+  const showGit = viewMode === 'git'
   const showFileTabs = openFiles.length > 0
 
   return (
     <div className="flex h-10 items-stretch gap-0 overflow-x-auto border-b border-border/25 bg-background/25">
       <TabButton
         active={showExplorer}
-        onClick={() => setActiveFile(null)}
+        onClick={() => setViewMode('explorer')}
         title="File Explorer"
       >
         <FolderTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground/75" />
         <span>Explorer</span>
       </TabButton>
 
+      <TabButton
+        active={showGit}
+        onClick={() => setViewMode('git')}
+        title="Git / Source Control"
+      >
+        <GitBranch className="h-3.5 w-3.5 shrink-0 text-muted-foreground/75" />
+        <span>Git</span>
+      </TabButton>
+
       {showFileTabs &&
         openFiles.map((file) => {
-          const isActive = activeFilePath === file.path
+          const isActive = viewMode === 'editor' && activeFilePath === file.path
           const isModified = !!gitStatus[file.relativePath] || file.diffMode
           return (
             <div

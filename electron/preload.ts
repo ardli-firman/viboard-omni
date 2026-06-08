@@ -44,6 +44,24 @@ const api = {
     ipcRenderer.invoke('git:getStatus', dirPath),
   getGitHeadContent: (dirPath: string, filePath: string): Promise<string | null> =>
     ipcRenderer.invoke('git:getHeadContent', dirPath, filePath),
+  getGitBranch: (dirPath: string): Promise<string> =>
+    ipcRenderer.invoke('git:getCurrentBranch', dirPath),
+  gitAdd: (dirPath: string, filePath: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('git:add', dirPath, filePath),
+  gitUnstage: (dirPath: string, filePath: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('git:unstage', dirPath, filePath),
+  gitDiscard: (dirPath: string, filePath: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('git:discard', dirPath, filePath),
+  gitCommit: (dirPath: string, message: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('git:commit', dirPath, message),
+  gitPush: (dirPath: string): Promise<{ success: boolean; error?: string; output?: string }> =>
+    ipcRenderer.invoke('git:push', dirPath),
+  gitPull: (dirPath: string): Promise<{ success: boolean; error?: string; output?: string }> =>
+    ipcRenderer.invoke('git:pull', dirPath),
+  gitFetch: (dirPath: string): Promise<{ success: boolean; error?: string; output?: string }> =>
+    ipcRenderer.invoke('git:fetch', dirPath),
+  gitInit: (dirPath: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('git:init', dirPath),
 
   getColumns: (projectPath?: string): Promise<Column[]> => ipcRenderer.invoke('column:list', projectPath),
   createColumn: (data: { title: string; order: number; color?: string; projectPath?: string }): Promise<Column> =>
