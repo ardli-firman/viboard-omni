@@ -4,7 +4,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Card, CardContent } from '../ui/card'
 import { Button } from '../ui/button'
-import { Pencil, Trash2, Calendar, CheckSquare, ChevronDown, ChevronUp, MoreVertical } from 'lucide-react'
+import { Pencil, Trash2, Calendar, Clock, CheckSquare, ChevronDown, ChevronUp, MoreVertical } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -97,6 +97,21 @@ const getCardStatusDisplay = (status: AgentStatus, activity: AgentActivity): Sta
         ringClass: 'ring-1 ring-amber-500/30',
       }
   }
+}
+
+function formatRelativeTime(ts: number): string {
+  const diff = Date.now() - ts
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days}d ago`
+  const months = Math.floor(days / 30)
+  if (months < 12) return `${months}mo ago`
+  const years = Math.floor(months / 12)
+  return `${years}y ago`
 }
 
 export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardProps): React.ReactElement {
@@ -305,6 +320,18 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
             })}
           </div>
         )}
+
+        {/* Timestamps: created & updated */}
+        <div className="flex items-center gap-3 text-[10px] font-medium text-muted-foreground/70">
+          <span className="flex items-center gap-1" title={`Created: ${new Date(task.createdAt).toLocaleString()}`}>
+            <Clock className="h-3 w-3" />
+            <span>Created {formatRelativeTime(task.createdAt)}</span>
+          </span>
+          <span className="flex items-center gap-1" title={`Updated: ${new Date(task.updatedAt).toLocaleString()}`}>
+            <Clock className="h-3 w-3" />
+            <span>Updated {formatRelativeTime(task.updatedAt)}</span>
+          </span>
+        </div>
 
         {/* Row 3: Subtasks progress bar */}
         <div className="space-y-1.5">
