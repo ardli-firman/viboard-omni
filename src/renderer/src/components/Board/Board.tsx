@@ -7,6 +7,7 @@ import { ColumnModal } from '../Modal/ColumnModal'
 import { TagManagerModal } from '../Modal/TagManagerModal'
 import { useProjectStore } from '../../stores/projectStore'
 import { useTerminalStore } from '../../stores/terminalStore'
+import { TerminalManager } from '../Terminal/TerminalManager'
 import {
   DndContext,
   DragOverlay,
@@ -57,11 +58,24 @@ export function Board(): React.ReactElement {
   const [columnOrder, setColumnOrder] = useState<string[]>([])
   const [syncedSignature, setSyncedSignature] = useState<string>('')
   const [scale, setScale] = useState(1)
-  const [translateX, setTranslateX] = useState(0)
-  const [translateY, setTranslateY] = useState(0)
   const [isPanning, setIsPanning] = useState(false)
 
   const [collapsedColumns, setCollapsedColumns] = useState<string[]>([])
+
+  const panStartRef = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null)
+  const boardRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dragStartColumnRef = useRef<string | null>(null)
+  const [boardDimensions, setBoardDimensions] = useState({ width: 0, height: 0 })
+
+  useEffect(() => {
+    if (boardRef.current) {
+      setBoardDimensions({
+        width: boardRef.current.offsetWidth,
+        height: boardRef.current.offsetHeight,
+      })
+    }
+  }, [columns, tasks, columnOrder, collapsedColumns])
 
   useEffect(() => {
     if (currentProject) {
@@ -85,10 +99,6 @@ export function Board(): React.ReactElement {
       return next
     })
   }
-  const panStartRef = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null)
-  const boardRef = useRef<HTMLDivElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const dragStartColumnRef = useRef<string | null>(null)
 
   const sortedColumnsFromStore = useMemo(
     () => [...columns].sort((a, b) => a.order - b.order),
@@ -358,6 +368,15 @@ export function Board(): React.ReactElement {
     agentConfig?: Partial<AgentCliConfig>
   }): Promise<void> {
     if (editingTask) {
+      const configChanged =
+        editingTask.agentType !== data.agentType ||
+        JSON.stringify(editingTask.agentConfig) !== JSON.stringify(data.agentConfig)
+
+      if (configChanged) {
+        await window.electronAPI.killAgentPty(editingTask.id)
+        TerminalManager.getInstance().dispose(editingTask.id)
+      }
+
       await updateTask(editingTask.id, {
         title: data.title,
         description: data.description,
@@ -396,14 +415,16 @@ export function Board(): React.ReactElement {
 
   function resetZoom(): void {
     setScale(1)
-    setTranslateX(0)
-    setTranslateY(0)
+    if (containerRef.current) {
+      containerRef.current.scrollLeft = 0
+      containerRef.current.scrollTop = 0
+    }
   }
 
   function autoFit(): void {
     if (!boardRef.current || !containerRef.current) return
-    const boardWidth = boardRef.current.scrollWidth
-    const boardHeight = boardRef.current.scrollHeight
+    const boardWidth = boardRef.current.offsetWidth
+    const boardHeight = boardRef.current.offsetHeight
     const containerWidth = containerRef.current.clientWidth
     const containerHeight = containerRef.current.clientHeight
 
@@ -414,8 +435,10 @@ export function Board(): React.ReactElement {
       const fitScale = Math.max(0.1, Math.min(1, Math.min(scaleX, scaleY)))
 
       setScale(fitScale)
-      setTranslateX(0)
-      setTranslateY(0)
+      if (containerRef.current) {
+        containerRef.current.scrollLeft = 0
+        containerRef.current.scrollTop = 0
+      }
     }
   }
 
@@ -423,16 +446,21 @@ export function Board(): React.ReactElement {
     if (e.button === 1) {
       e.preventDefault()
       setIsPanning(true)
-      panStartRef.current = { x: e.clientX, y: e.clientY, tx: translateX, ty: translateY }
+      panStartRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        tx: containerRef.current?.scrollLeft ?? 0,
+        ty: containerRef.current?.scrollTop ?? 0,
+      }
     }
   }
 
   function handleMouseMove(e: React.MouseEvent): void {
-    if (!panStartRef.current) return
+    if (!panStartRef.current || !containerRef.current) return
     const dx = e.clientX - panStartRef.current.x
     const dy = e.clientY - panStartRef.current.y
-    setTranslateX(panStartRef.current.tx + dx)
-    setTranslateY(panStartRef.current.ty + dy)
+    containerRef.current.scrollLeft = panStartRef.current.tx - dx
+    containerRef.current.scrollTop = panStartRef.current.ty - dy
   }
 
   function handleMouseUp(): void {
@@ -504,7 +532,7 @@ export function Board(): React.ReactElement {
       </div>
       <div
         ref={containerRef}
-        className="relative flex-1 select-none overflow-hidden"
+        className="relative flex-1 select-none overflow-auto"
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
@@ -560,7 +588,7 @@ export function Board(): React.ReactElement {
             size="icon"
             className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
             onClick={resetZoom}
-            disabled={scale === 1 && translateX === 0 && translateY === 0}
+            disabled={scale === 1}
             title="Reset position and zoom (Ctrl+0)"
           >
             <RotateCcw className="h-3.5 w-3.5" />
@@ -568,13 +596,20 @@ export function Board(): React.ReactElement {
         </div>
 
         <div
-          ref={boardRef}
-          className="flex gap-5 p-6 min-h-max w-max"
           style={{
-            transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
-            transformOrigin: 'top left',
+            width: `${boardDimensions.width * scale}px`,
+            height: `${boardDimensions.height * scale}px`,
+            position: 'relative',
           }}
         >
+          <div
+            ref={boardRef}
+            className="flex gap-5 p-6 absolute top-0 left-0"
+            style={{
+              transform: `scale(${scale})`,
+              transformOrigin: 'top left',
+            }}
+          >
           <DndContext
             sensors={sensors}
             collisionDetection={closestCorners}
@@ -642,6 +677,7 @@ export function Board(): React.ReactElement {
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
       <TaskModal

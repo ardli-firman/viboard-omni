@@ -17,10 +17,24 @@ export function initDatabase(): Database.Database {
   db.pragma('foreign_keys = ON')
   createTables()
   migrateSchema()
+
+  // Clean up any stale "running" statuses on startup
+  try {
+    const result = db.prepare("UPDATE tasks SET agent_status = 'idle' WHERE agent_status = 'running'").run()
+    if (result.changes > 0) {
+      console.log(`[db] Reset ${result.changes} stale running task status(es) to idle on startup`)
+    }
+  } catch (err) {
+    console.error('[db] Failed to reset stale task statuses on startup:', err)
+  }
+
   return db
 }
 
 function migrateSchema(): void {
+  const versionRow = db.prepare('PRAGMA user_version').get() as { user_version: number }
+  const currentVersion = versionRow ? versionRow.user_version : 0
+
   // v2: Add updated_at to columns table
   try {
     db.exec('ALTER TABLE columns ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0')
@@ -55,13 +69,17 @@ function migrateSchema(): void {
 
   // v6: Rename legacy 'pi-agent' agent_type to 'oh-my-pi'
   //     Tasks created before the driver refactor had 'pi-agent' hardcoded.
-  try {
-    const result = db.prepare(`UPDATE tasks SET agent_type = 'oh-my-pi' WHERE agent_type = 'pi-agent'`).run()
-    if (result.changes > 0) {
-      console.log(`[db] Migration v6: updated ${result.changes} task(s) from pi-agent → oh-my-pi`)
+  if (currentVersion < 6) {
+    try {
+      const result = db.prepare(`UPDATE tasks SET agent_type = 'oh-my-pi' WHERE agent_type = 'pi-agent'`).run()
+      if (result.changes > 0) {
+        console.log(`[db] Migration v6: updated ${result.changes} task(s) from pi-agent → oh-my-pi`)
+      }
+      db.pragma('user_version = 6')
+      console.log('[db] Migration: database version set to 6')
+    } catch (err) {
+      console.error('[db] Migration v6 failed:', err)
     }
-  } catch (err) {
-    console.error('[db] Migration v6 failed:', err)
   }
 }
 

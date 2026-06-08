@@ -322,12 +322,15 @@ export function registerTerminalHandlers(): void {
 
         childProcess.onExit((e) => {
           const exitRun = runs.get(taskId)
-          if (exitRun?.idleTimer) clearTimeout(exitRun.idleTimer)
-
-          flushOutput(taskId)
-          const finalStatus: AgentStatus = e.exitCode === 0 ? 'completed' : 'error'
-          sendAgentStatus(taskId, finalStatus)
-          runs.delete(taskId)
+          if (exitRun && exitRun.childProcess === childProcess) {
+            if (exitRun.idleTimer) clearTimeout(exitRun.idleTimer)
+            flushOutput(taskId)
+            const finalStatus: AgentStatus = e.exitCode === 0 ? 'completed' : 'error'
+            sendAgentStatus(taskId, finalStatus)
+            runs.delete(taskId)
+          } else {
+            flushOutput(taskId)
+          }
         })
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)

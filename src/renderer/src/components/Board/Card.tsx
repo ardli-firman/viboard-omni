@@ -169,48 +169,52 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
         }
       }}
     >
-      {/* Decorative accent top line for running status */}
-      {display.lineClass && (
-        <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-2xl ${display.lineClass}`} />
-      )}
-
       <CardContent className="space-y-3.5 p-4">
         {/* Row 1: Title & Actions */}
         <div className="flex items-start justify-between gap-3 min-h-6">
-          <div className="flex-1 flex flex-col gap-1.5 min-w-0">
-            <h4 className="text-sm font-bold leading-snug tracking-tight text-foreground transition-colors group-hover/card:text-primary">
-              {task.title}
-            </h4>
-            {/* Compact running agent status display when collapsed */}
-            {isCollapsed && realStatus !== 'idle' && (
-              <div className="flex items-center">
-                <span className="inline-flex items-center gap-1.5 rounded-md border border-border/30 bg-muted/40 px-1.5 py-0.5 text-[9px] font-bold uppercase text-muted-foreground/80 shadow-xs select-none">
-                  <span className="text-[10px] leading-none">{AGENT_DISPLAY[task.agentType]?.icon ?? '🤖'}</span>
-                  <span>{AGENT_DISPLAY[task.agentType]?.label ?? task.agentType}</span>
-                  <span className="relative flex h-1.5 w-1.5 shrink-0">
-                    {realStatus === 'running' && (
-                      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                        realActivity === 'thinking' ? 'bg-indigo-400' :
-                        realActivity === 'tool_use' ? 'bg-purple-400' :
-                        realActivity === 'responding' ? 'bg-emerald-400' : 'bg-amber-400'
-                      }`}></span>
-                    )}
-                    <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${
-                      realStatus === 'completed' ? 'bg-emerald-500' :
-                      realStatus === 'error' ? 'bg-destructive' :
-                      realActivity === 'thinking' ? 'bg-indigo-500' :
-                      realActivity === 'tool_use' ? 'bg-purple-500' :
-                      realActivity === 'responding' ? 'bg-emerald-500' : 'bg-amber-500'
-                    }`}></span>
-                  </span>
-                  {realStatus === 'running' && (
-                    <span className="text-[8px] text-muted-foreground/60 lowercase font-medium">
-                      ({realActivity === 'tool_use' ? 'tool' : realActivity})
-                    </span>
-                  )}
-                </span>
-              </div>
+          <div className="flex-1 flex items-start gap-2 min-w-0">
+            {/* Status indicator vertical stripe */}
+            {display.lineClass && (
+              <div 
+                className={`w-1 h-5 shrink-0 rounded-full ${display.lineClass} mt-0.5`} 
+                title={`Agent status: ${display.label}`}
+              />
             )}
+            <div className="flex-1 flex flex-col gap-1.5 min-w-0">
+              <h4 className="text-sm font-bold leading-snug tracking-tight text-foreground transition-colors group-hover/card:text-primary">
+                {task.title}
+              </h4>
+              {/* Compact running agent status display when collapsed */}
+              {isCollapsed && realStatus !== 'idle' && (
+                <div className="flex items-center">
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-border/30 bg-muted/40 px-1.5 py-0.5 text-[9px] font-bold uppercase text-muted-foreground/80 shadow-xs select-none">
+                    <span className="text-[10px] leading-none">{AGENT_DISPLAY[task.agentType]?.icon ?? '🤖'}</span>
+                    <span>{AGENT_DISPLAY[task.agentType]?.label ?? task.agentType}</span>
+                    <span className="relative flex h-1.5 w-1.5 shrink-0">
+                      {realStatus === 'running' && (
+                        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                          realActivity === 'thinking' ? 'bg-indigo-400' :
+                          realActivity === 'tool_use' ? 'bg-purple-400' :
+                          realActivity === 'responding' ? 'bg-emerald-400' : 'bg-amber-400'
+                        }`}></span>
+                      )}
+                      <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${
+                        realStatus === 'completed' ? 'bg-emerald-500' :
+                        realStatus === 'error' ? 'bg-destructive' :
+                        realActivity === 'thinking' ? 'bg-indigo-500' :
+                        realActivity === 'tool_use' ? 'bg-purple-500' :
+                        realActivity === 'responding' ? 'bg-emerald-500' : 'bg-amber-500'
+                      }`}></span>
+                    </span>
+                    {realStatus === 'running' && (
+                      <span className="text-[8px] text-muted-foreground/60 lowercase font-medium">
+                        ({realActivity === 'tool_use' ? 'tool' : realActivity})
+                      </span>
+                    )}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex shrink-0 gap-1 items-center">
             {/* Collapse toggle button */}

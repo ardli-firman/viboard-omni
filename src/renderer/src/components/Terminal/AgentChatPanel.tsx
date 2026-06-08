@@ -168,7 +168,7 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
     return () => {
       manager.detach(taskId)
     }
-  }, [taskId])
+  }, [taskId, task?.agentType, JSON.stringify(task?.agentConfig)])
 
   // ── IPC Output Listener ──────────────────────────────────────────
   // A single scoped listener routes PTY output to the TerminalManager.
