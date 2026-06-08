@@ -33,6 +33,7 @@ export function Board(): React.ReactElement {
   const {
     columns,
     tasks,
+    currentProject,
     addColumn,
     addTask,
     updateTask,
@@ -59,6 +60,31 @@ export function Board(): React.ReactElement {
   const [translateX, setTranslateX] = useState(0)
   const [translateY, setTranslateY] = useState(0)
   const [isPanning, setIsPanning] = useState(false)
+
+  const [collapsedColumns, setCollapsedColumns] = useState<string[]>([])
+
+  useEffect(() => {
+    if (currentProject) {
+      try {
+        const saved = localStorage.getItem(`viboard_collapsed_cols_${currentProject}`)
+        setCollapsedColumns(saved ? JSON.parse(saved) : [])
+      } catch {
+        setCollapsedColumns([])
+      }
+    } else {
+      setCollapsedColumns([])
+    }
+  }, [currentProject])
+
+  const toggleColumnCollapse = (colId: string) => {
+    setCollapsedColumns((prev) => {
+      const next = prev.includes(colId) ? prev.filter((id) => id !== colId) : [...prev, colId]
+      if (currentProject) {
+        localStorage.setItem(`viboard_collapsed_cols_${currentProject}`, JSON.stringify(next))
+      }
+      return next
+    })
+  }
   const panStartRef = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null)
   const boardRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -572,6 +598,8 @@ export function Board(): React.ReactElement {
                   onOpenChat={(task) => openPanel(task.id)}
                   onDeleteColumn={deleteColumn}
                   onUpdateColumn={updateColumn}
+                  isCollapsed={collapsedColumns.includes(col.id)}
+                  onToggleCollapse={() => toggleColumnCollapse(col.id)}
                 />
               ))}
             </SortableContext>
@@ -587,12 +615,14 @@ export function Board(): React.ReactElement {
                     />
                   </div>
                 ) : activeColumn ? (
-                  <div style={{ width: '288px', transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+                  <div style={{ width: collapsedColumns.includes(activeColumn.id) ? '64px' : '288px', transform: `scale(${scale})`, transformOrigin: 'top left' }}>
                     <div className="flex w-full shrink-0 scale-105 flex-col gap-3 rounded-2xl border border-primary/20 bg-background/60 p-4 opacity-95 shadow-xl backdrop-blur-xl transition-transform">
-                      <div className="text-base font-bold text-primary">{activeColumn.title}</div>
-                      <div className="text-sm font-medium text-muted-foreground">
-                        {tasks.filter((t) => t.columnId === activeColumn.id).length} tasks
-                      </div>
+                      <div className="text-base font-bold text-primary truncate">{activeColumn.title}</div>
+                      {!collapsedColumns.includes(activeColumn.id) && (
+                        <div className="text-sm font-medium text-muted-foreground">
+                          {tasks.filter((t) => t.columnId === activeColumn.id).length} tasks
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : null}

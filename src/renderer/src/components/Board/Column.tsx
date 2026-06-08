@@ -5,7 +5,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
-import { Plus, Trash2, GripVertical, Pencil } from 'lucide-react'
+import { Plus, Trash2, GripVertical, Pencil, ChevronLeft, ChevronRight } from 'lucide-react'
 import { KanbanCard } from './Card'
 import {
   Dialog,
@@ -27,6 +27,8 @@ interface ColumnProps {
   onOpenChat: (task: Task) => void
   onDeleteColumn: (columnId: string) => void
   onUpdateColumn: (id: string, data: { title?: string; color?: string }) => void
+  isCollapsed?: boolean
+  onToggleCollapse?: () => void
 }
 
 export function KanbanColumn({
@@ -39,6 +41,8 @@ export function KanbanColumn({
   onOpenChat,
   onDeleteColumn,
   onUpdateColumn,
+  isCollapsed = false,
+  onToggleCollapse,
 }: ColumnProps): React.ReactElement {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -73,6 +77,54 @@ export function KanbanColumn({
       setEditTitle(column.title)
       setIsEditing(false)
     }
+  }
+  if (isCollapsed) {
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className="group/column flex w-16 h-[640px] shrink-0 flex-col items-center gap-4 rounded-2xl border border-border/30 bg-card/25 py-4 px-2 shadow-xs transition-all duration-300 hover:bg-card/35 hover:shadow-sm"
+      >
+        {/* Collapse drag handle & expand button */}
+        <div className="flex flex-col items-center gap-2.5">
+          <button
+            className="cursor-grab touch-none text-muted-foreground/45 hover:text-primary transition-colors"
+            {...attributes}
+            {...listeners}
+            title="Drag to reorder"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 rounded-xl text-muted-foreground/60 hover:bg-muted hover:text-foreground"
+            onClick={onToggleCollapse}
+            title="Expand column"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Vertical Title */}
+        <div className="flex-1 flex items-center justify-center min-h-0 w-full overflow-hidden">
+          <div
+            className="select-none font-bold uppercase tracking-wider text-foreground/90 text-xs [writing-mode:vertical-lr] rotate-180 whitespace-nowrap cursor-pointer hover:text-primary transition-colors"
+            onClick={onToggleCollapse}
+            title="Click to expand"
+          >
+            {column.title}
+          </div>
+        </div>
+
+        {/* Task count badge */}
+        <div className="flex flex-col items-center">
+          <span className="shrink-0 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+            {taskCount}
+          </span>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -120,17 +172,28 @@ export function KanbanColumn({
               </Button>
             </>
           )}
-          <span className="shrink-0 rounded-full border border-border/25 bg-background/40 px-2 py-0.5 text-[10px] font-bold text-muted-foreground/80">{taskCount}</span>
+          <span className="shrink-0 rounded-full border border-border/30 bg-muted/65 px-2 py-0.5 text-[10px] font-bold text-foreground/85">{taskCount}</span>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 shrink-0 text-muted-foreground/40 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover/column:opacity-100"
-          onClick={() => setConfirmOpen(true)}
-          title="Delete column"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0 text-muted-foreground/40 opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover/column:opacity-100"
+            onClick={onToggleCollapse}
+            title="Collapse column"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0 text-muted-foreground/40 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover/column:opacity-100"
+            onClick={() => setConfirmOpen(true)}
+            title="Delete column"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </CardHeader>
 
       {/* Tasks area */}

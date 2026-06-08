@@ -1,9 +1,16 @@
+import { useState } from 'react'
 import type { Task, AgentStatus, AgentActivity, AgentType } from '@shared/types'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Card, CardContent } from '../ui/card'
 import { Button } from '../ui/button'
-import { Pencil, Trash2, Calendar, CheckSquare } from 'lucide-react'
+import { Pencil, Trash2, Calendar, CheckSquare, ChevronDown, ChevronUp, MoreVertical } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '../ui/dropdown-menu'
 import { useTerminalStore } from '../../stores/terminalStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
@@ -102,6 +109,26 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
   const realActivity = useTerminalStore((s) => s.activity[task.id]) ?? 'waiting'
   const display = getCardStatusDisplay(realStatus, realActivity)
 
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(`viboard_task_collapsed_${task.id}`)
+      return saved ? JSON.parse(saved) : true
+    } catch {
+      return true
+    }
+  })
+
+  const toggleCollapse = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setIsCollapsed((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem(`viboard_task_collapsed_${task.id}`, JSON.stringify(next))
+      } catch {}
+      return next
+    })
+  }
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -131,7 +158,7 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
     <Card
       ref={setNodeRef}
       style={style}
-      className={`group/card relative cursor-grab overflow-hidden rounded-2xl border border-border/40 bg-card p-0 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_8px_30px_rgb(60,110,71,0.08)] active:cursor-grabbing ${
+      className={`group/card relative cursor-grab rounded-2xl border border-border/40 bg-card p-0 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_8px_30px_rgb(60,110,71,0.08)] active:cursor-grabbing ${
         isDragging ? 'ring-2 ring-primary/50 opacity-40 shadow-lg' : ''
       } ${display.ringClass ?? ''}`}
       {...attributes}
@@ -144,42 +171,102 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
     >
       {/* Decorative accent top line for running status */}
       {display.lineClass && (
-        <div className={`absolute top-0 left-0 right-0 h-1 ${display.lineClass}`} />
+        <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-2xl ${display.lineClass}`} />
       )}
 
       <CardContent className="space-y-3.5 p-4">
         {/* Row 1: Title & Actions */}
         <div className="flex items-start justify-between gap-3 min-h-6">
-          <h4 className="text-sm font-bold leading-snug tracking-tight text-foreground transition-colors group-hover/card:text-primary flex-1">
-            {task.title}
-          </h4>
-          <div className="flex shrink-0 gap-1 opacity-0 transition-opacity duration-200 group-hover/card:opacity-100">
+          <div className="flex-1 flex flex-col gap-1.5 min-w-0">
+            <h4 className="text-sm font-bold leading-snug tracking-tight text-foreground transition-colors group-hover/card:text-primary">
+              {task.title}
+            </h4>
+            {/* Compact running agent status display when collapsed */}
+            {isCollapsed && realStatus !== 'idle' && (
+              <div className="flex items-center">
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-border/30 bg-muted/40 px-1.5 py-0.5 text-[9px] font-bold uppercase text-muted-foreground/80 shadow-xs select-none">
+                  <span className="text-[10px] leading-none">{AGENT_DISPLAY[task.agentType]?.icon ?? '🤖'}</span>
+                  <span>{AGENT_DISPLAY[task.agentType]?.label ?? task.agentType}</span>
+                  <span className="relative flex h-1.5 w-1.5 shrink-0">
+                    {realStatus === 'running' && (
+                      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                        realActivity === 'thinking' ? 'bg-indigo-400' :
+                        realActivity === 'tool_use' ? 'bg-purple-400' :
+                        realActivity === 'responding' ? 'bg-emerald-400' : 'bg-amber-400'
+                      }`}></span>
+                    )}
+                    <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${
+                      realStatus === 'completed' ? 'bg-emerald-500' :
+                      realStatus === 'error' ? 'bg-destructive' :
+                      realActivity === 'thinking' ? 'bg-indigo-500' :
+                      realActivity === 'tool_use' ? 'bg-purple-500' :
+                      realActivity === 'responding' ? 'bg-emerald-500' : 'bg-amber-500'
+                    }`}></span>
+                  </span>
+                  {realStatus === 'running' && (
+                    <span className="text-[8px] text-muted-foreground/60 lowercase font-medium">
+                      ({realActivity === 'tool_use' ? 'tool' : realActivity})
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="flex shrink-0 gap-1 items-center">
+            {/* Collapse toggle button */}
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 rounded-md hover:bg-accent hover:text-accent-foreground"
-              onClick={(e) => {
-                e.stopPropagation()
-                onEdit()
-              }}
-              title="Edit Task"
+              className="h-6 w-6 rounded-md text-muted-foreground/60 hover:bg-accent hover:text-accent-foreground transition-colors"
+              onClick={toggleCollapse}
+              title={isCollapsed ? "Expand Task" : "Collapse Task"}
             >
-              <Pencil className="h-3 w-3" />
+              {isCollapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 rounded-md hover:bg-destructive/10 hover:text-destructive"
-              onClick={(e) => {
-                e.stopPropagation()
-                onDelete()
-              }}
-              title="Delete Task"
-            >
-              <Trash2 className="h-3 w-3" />
-            </Button>
+
+            {/* Actions Dropdown Button (3-dots vertical) */}
+            <div className="opacity-0 transition-opacity duration-200 group-hover/card:opacity-100">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 rounded-md text-muted-foreground/60 hover:bg-accent hover:text-accent-foreground"
+                    onClick={(e) => e.stopPropagation()}
+                    title="Task Actions"
+                  >
+                    <MoreVertical className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-popover border border-border shadow-md rounded-xl p-1">
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onEdit()
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-foreground cursor-pointer rounded-lg hover:bg-muted"
+                  >
+                    <Pencil className="h-3 w-3" />
+                    <span>Edit Task</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDelete()
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10 cursor-pointer rounded-lg"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    <span>Delete Task</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
+
+        {!isCollapsed && (
+          <>
 
         {/* Row 2: Description */}
         {task.description && (
@@ -307,6 +394,8 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
             )}
           </div>
         </div>
+        </>
+        )}
       </CardContent>
     </Card>
   )
