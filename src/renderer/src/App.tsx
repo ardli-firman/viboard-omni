@@ -12,6 +12,7 @@ import { useTerminalStore } from './stores/terminalStore'
 import { useProjectStore } from './stores/projectStore'
 import { useSettingsStore } from './stores/settingsStore'
 import type { AgentActivity } from '@shared/types'
+import { TooltipProvider } from './components/ui/tooltip'
 
 function App(): React.ReactElement {
   const { init } = useThemeStore()
@@ -52,7 +53,7 @@ function App(): React.ReactElement {
   }, [setActivity])
 
   return (
-    <>
+    <TooltipProvider>
       <div className="flex h-screen flex-col bg-background">
         <Header />
         <div className="flex flex-1 flex-col overflow-hidden">
@@ -77,7 +78,7 @@ function App(): React.ReactElement {
         </div>
       </div>
       <Toaster />
-    </>
+    </TooltipProvider>
   )
 }
 

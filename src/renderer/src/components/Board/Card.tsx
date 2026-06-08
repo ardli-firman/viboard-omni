@@ -1,4 +1,4 @@
-import type { Task, AgentStatus, AgentActivity } from '@shared/types'
+import type { Task, AgentStatus, AgentActivity, AgentType } from '@shared/types'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Card, CardContent } from '../ui/card'
@@ -6,6 +6,15 @@ import { Button } from '../ui/button'
 import { Pencil, Trash2, Calendar, CheckSquare } from 'lucide-react'
 import { useTerminalStore } from '../../stores/terminalStore'
 import { useProjectStore } from '../../stores/projectStore'
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
+
+const AGENT_DISPLAY: Record<AgentType, { label: string; icon: string }> = {
+  'oh-my-pi': { label: 'Oh My Pi', icon: '🤖' },
+  'gemini-cli': { label: 'Gemini', icon: '✨' },
+  'pi-agent': { label: 'Pi Agent', icon: '🥧' },
+  'hermes': { label: 'Hermes', icon: '🪄' },
+  'custom': { label: 'Custom', icon: '⚙️' },
+}
 
 interface KanbanCardProps {
   task: Task
@@ -244,10 +253,58 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase shadow-xs ${display.className}`}>
-              {display.label}
-            </span>
+          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            {task.agentType && (
+              <Tooltip delayDuration={200}>
+                <TooltipTrigger asChild>
+                  <span 
+                    className="inline-flex items-center rounded-md border border-border/30 bg-muted/40 px-2 py-0.5 text-[9px] font-bold tracking-wide uppercase text-muted-foreground/80 shadow-xs cursor-help select-none"
+                  >
+                    <span className="mr-1 text-[11px] leading-none">{AGENT_DISPLAY[task.agentType]?.icon ?? '🤖'}</span>
+                    <span className={realStatus !== 'idle' ? 'mr-1.5' : ''}>{AGENT_DISPLAY[task.agentType]?.label ?? task.agentType}</span>
+                    
+                    {/* Status Dot inside Agent badge */}
+                    {realStatus !== 'idle' && (
+                      <span className="relative flex h-1.5 w-1.5 shrink-0">
+                        {realStatus === 'running' && (
+                          <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                            realActivity === 'thinking' ? 'bg-indigo-400' :
+                            realActivity === 'tool_use' ? 'bg-purple-400' :
+                            realActivity === 'responding' ? 'bg-emerald-400' : 'bg-amber-400'
+                          }`}></span>
+                        )}
+                        <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${
+                          realStatus === 'completed' ? 'bg-emerald-500' :
+                          realStatus === 'error' ? 'bg-destructive' :
+                          realActivity === 'thinking' ? 'bg-indigo-500' :
+                          realActivity === 'tool_use' ? 'bg-purple-500' :
+                          realActivity === 'responding' ? 'bg-emerald-500' : 'bg-amber-500'
+                        }`}></span>
+                      </span>
+                    )}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="bg-popover text-popover-foreground border border-border shadow-md px-3 py-2 rounded-xl backdrop-blur-md">
+                  <div className="flex flex-col gap-1 text-[11px] font-medium leading-none">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <span className="text-xs">{AGENT_DISPLAY[task.agentType]?.icon ?? '🤖'}</span>
+                      <span>{AGENT_DISPLAY[task.agentType]?.label ?? task.agentType} Agent</span>
+                    </div>
+                    <div className="text-muted-foreground flex items-center gap-1.5 mt-0.5 capitalize">
+                      <span className={`h-1.5 w-1.5 rounded-full ${
+                        realStatus === 'completed' ? 'bg-emerald-500' :
+                        realStatus === 'error' ? 'bg-destructive' :
+                        realStatus === 'idle' ? 'bg-slate-400' :
+                        realActivity === 'thinking' ? 'bg-indigo-500' :
+                        realActivity === 'tool_use' ? 'bg-purple-500' :
+                        realActivity === 'responding' ? 'bg-emerald-500' : 'bg-amber-500'
+                      }`} />
+                      <span>Status: {realStatus === 'running' ? `${realStatus} (${realActivity === 'tool_use' ? 'running tool' : realActivity})` : realStatus}</span>
+                    </div>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
         </div>
       </CardContent>
