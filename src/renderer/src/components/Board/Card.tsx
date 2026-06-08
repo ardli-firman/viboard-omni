@@ -5,6 +5,7 @@ import { Card, CardContent } from '../ui/card'
 import { Button } from '../ui/button'
 import { Pencil, Trash2, Calendar, CheckSquare } from 'lucide-react'
 import { useTerminalStore } from '../../stores/terminalStore'
+import { useProjectStore } from '../../stores/projectStore'
 
 interface KanbanCardProps {
   task: Task
@@ -100,13 +101,7 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
 
   // Generate deterministic dummy data based on task id
   const charCodeSum = Array.from(task.id).reduce((sum, char) => sum + char.charCodeAt(0), 0)
-  
-  const priorities = [
-    { label: 'Low', color: 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/10' },
-    { label: 'Medium', color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/15' },
-    { label: 'High', color: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20' }
-  ]
-  const priority = priorities[charCodeSum % 3]
+  const { tags: projectTags } = useProjectStore()
 
   const totalSubtasks = (charCodeSum % 5) + 2 // 2 to 6
   const doneSubtasks = charCodeSum % (totalSubtasks + 1)
@@ -143,12 +138,12 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
         <div className={`absolute top-0 left-0 right-0 h-1 ${display.lineClass}`} />
       )}
 
-      <CardContent className="space-y-4.5 p-4.5">
-        {/* Row 1: Priority & Action Buttons */}
-        <div className="flex items-center justify-between">
-          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${priority.color}`}>
-            {priority.label} Priority
-          </span>
+      <CardContent className="space-y-3.5 p-4">
+        {/* Row 1: Title & Actions */}
+        <div className="flex items-start justify-between gap-3 min-h-6">
+          <h4 className="text-sm font-bold leading-snug tracking-tight text-foreground transition-colors group-hover/card:text-primary flex-1">
+            {task.title}
+          </h4>
           <div className="flex shrink-0 gap-1 opacity-0 transition-opacity duration-200 group-hover/card:opacity-100">
             <Button
               variant="ghost"
@@ -177,17 +172,39 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
           </div>
         </div>
 
-        {/* Row 2: Title & Description */}
-        <div className="space-y-1.5">
-          <h4 className="text-sm font-bold leading-snug tracking-tight text-foreground transition-colors group-hover/card:text-primary">
-            {task.title}
-          </h4>
-          {task.description && (
-            <p className="line-clamp-2 text-[12px] font-medium leading-relaxed text-muted-foreground/85">
-              {task.description}
-            </p>
-          )}
-        </div>
+        {/* Row 2: Description */}
+        {task.description && (
+          <p className="line-clamp-2 text-[12px] font-medium leading-relaxed text-muted-foreground/85">
+            {task.description}
+          </p>
+        )}
+
+        {/* Row 3: Tags Display (rendered conditionally only when tags exist) */}
+        {task.tags && task.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-0.5">
+            {task.tags.map((tagId) => {
+              const tag = projectTags.find((t) => t.id === tagId)
+              if (!tag) return null
+              return (
+                <span
+                  key={tag.id}
+                  style={{
+                    backgroundColor: `${tag.color}15`,
+                    color: tag.color,
+                    borderColor: `${tag.color}35`,
+                  }}
+                  className="inline-flex items-center rounded-md border px-2 py-0.5 text-[9px] font-extrabold tracking-wider uppercase transition-colors duration-200 shadow-xs"
+                >
+                  <span
+                    className="h-1 w-1 rounded-full mr-1.5"
+                    style={{ backgroundColor: tag.color }}
+                  />
+                  {tag.name}
+                </span>
+              )
+            })}
+          </div>
+        )}
 
         {/* Row 3: Subtasks progress bar */}
         <div className="space-y-1.5">

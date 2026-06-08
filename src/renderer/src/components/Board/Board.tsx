@@ -4,6 +4,7 @@ import type { Task, AgentType, AgentCliConfig } from '@shared/types'
 import { KanbanColumn } from './Column'
 import { TaskModal } from '../Modal/TaskModal'
 import { ColumnModal } from '../Modal/ColumnModal'
+import { TagManagerModal } from '../Modal/TagManagerModal'
 import { useProjectStore } from '../../stores/projectStore'
 import { useTerminalStore } from '../../stores/terminalStore'
 import {
@@ -26,7 +27,7 @@ import {
 } from '@dnd-kit/sortable'
 import { KanbanCard } from './Card'
 import { Button } from '../ui/button'
-import { Minus, Plus, Maximize2, RotateCcw } from 'lucide-react'
+import { Minus, Plus, Maximize2, RotateCcw, Tag } from 'lucide-react'
 
 export function Board(): React.ReactElement {
   const {
@@ -45,6 +46,7 @@ export function Board(): React.ReactElement {
   const [activeType, setActiveType] = useState<'task' | 'column' | null>(null)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
   const [columnModalOpen, setColumnModalOpen] = useState(false)
+  const [tagManagerOpen, setTagManagerOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [taskColumnId, setTaskColumnId] = useState<string>('')
 
@@ -393,14 +395,24 @@ export function Board(): React.ReactElement {
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-bold uppercase tracking-[0.08em] text-muted-foreground">Kanban Board</h2>
         </div>
-        <Button
-          variant="default"
-          size="sm"
-          className="rounded-xl font-bold shadow-sm transition-all hover:scale-[1.02] hover:shadow-md active:scale-98"
-          onClick={() => setColumnModalOpen(true)}
-        >
-          <Plus className="mr-1.5 h-4 w-4" />Add Column
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl font-bold shadow-xs transition-all hover:bg-muted"
+            onClick={() => setTagManagerOpen(true)}
+          >
+            <Tag className="mr-1.5 h-4 w-4" />Tags
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            className="rounded-xl font-bold shadow-sm transition-all hover:scale-[1.02] hover:shadow-md active:scale-98"
+            onClick={() => setColumnModalOpen(true)}
+          >
+            <Plus className="mr-1.5 h-4 w-4" />Add Column
+          </Button>
+        </div>
       </div>
       <div
         ref={containerRef}
@@ -550,6 +562,10 @@ export function Board(): React.ReactElement {
         open={columnModalOpen}
         onOpenChange={setColumnModalOpen}
         onSave={async (title, color) => { await addColumn(title, color) }}
+      />
+      <TagManagerModal
+        open={tagManagerOpen}
+        onOpenChange={setTagManagerOpen}
       />
     </div>
   )

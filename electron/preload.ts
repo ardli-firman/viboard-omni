@@ -9,6 +9,7 @@ import type {
   AgentType,
   AgentCliConfig,
   AppSettings,
+  ProjectTag,
 } from '../src/shared/types'
 import type { FileEntry, FileTreeItem } from './ipc/files'
 
@@ -61,6 +62,15 @@ const api = {
   deleteTask: (id: string): Promise<void> => ipcRenderer.invoke('task:delete', id),
   moveTask: (taskId: string, columnId: string, order: number): Promise<Task> =>
     ipcRenderer.invoke('task:move', taskId, columnId, order),
+
+  // Tags operations
+  getProjectTags: (projectPath?: string): Promise<ProjectTag[]> =>
+    ipcRenderer.invoke('tag:list', projectPath),
+  createProjectTag: (data: { projectPath: string; name: string; color: string }): Promise<ProjectTag> =>
+    ipcRenderer.invoke('tag:create', data),
+  updateProjectTag: (id: string, data: { name?: string; color?: string }): Promise<ProjectTag> =>
+    ipcRenderer.invoke('tag:update', id, data),
+  deleteProjectTag: (id: string): Promise<void> => ipcRenderer.invoke('tag:delete', id),
 
   // ── Global App Settings ──────────────────────────────────────────
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke('settings:get'),

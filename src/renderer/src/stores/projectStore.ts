@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Column, Task, AgentType, AgentStatus, RegisteredProject } from '@shared/types'
+import type { Column, Task, AgentType, AgentStatus, RegisteredProject, ProjectTag } from '@shared/types'
 import { useSettingsStore } from './settingsStore'
 
 interface ProjectState {
@@ -7,6 +7,7 @@ interface ProjectState {
   currentProject: string | null
   columns: Column[]
   tasks: Task[]
+  tags: ProjectTag[]
   loading: boolean
   projectsLoaded: boolean
   loadProjects: () => Promise<void>
@@ -24,6 +25,9 @@ interface ProjectState {
   deleteTask: (id: string) => Promise<void>
   moveTask: (taskId: string, columnId: string, order: number) => Promise<void>
   setAgentStatus: (taskId: string, status: AgentStatus) => void
+  addProjectTag: (name: string, color: string) => Promise<void>
+  updateProjectTag: (id: string, data: { name?: string; color?: string }) => Promise<void>
+  deleteProjectTag: (id: string) => Promise<void>
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
@@ -31,6 +35,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   currentProject: null,
   columns: [],
   tasks: [],
+  tags: [],
   loading: false,
   projectsLoaded: false,
 
@@ -69,6 +74,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         currentProject: close ? null : s.currentProject,
         columns: close ? [] : s.columns,
         tasks: close ? [] : s.tasks,
+        tags: close ? [] : s.tags,
       }
     })
   },
@@ -78,6 +84,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       currentProject: path,
       columns: [],
       tasks: [],
+      tags: [],
       loading: true,
     })
     window.electronAPI.touchProject(path)
@@ -89,6 +96,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       currentProject: null,
       columns: [],
       tasks: [],
+      tags: [],
       loading: false,
     })
   },
@@ -96,11 +104,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   loadData: async (projectPath) => {
     set({ loading: true })
     try {
-      const [columns, tasks] = await Promise.all([
+      const [columns, tasks, tags] = await Promise.all([
         window.electronAPI.getColumns(projectPath),
         window.electronAPI.getTasks(projectPath),
+        window.electronAPI.getProjectTags(projectPath),
       ])
-      set({ columns, tasks, loading: false })
+      set({ columns, tasks, tags: tags || [], loading: false })
     } catch (err) {
       console.error('Failed to load data:', err)
       set({ loading: false })
@@ -190,5 +199,43 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set((s) => ({
       tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, agentStatus: status } : t)),
     }))
+  },
+
+  addProjectTag: async (name, color) => {
+    const projectPath = get().currentProject
+    if (!projectPath) throw new Error('No project open')
+    try {
+      const tag = await window.electronAPI.createProjectTag({ projectPath, name, color })
+      set((s) => ({ tags: [...s.tags, tag] }))
+    } catch (err) {
+      console.error('[addProjectTag] Error:', err)
+      throw err
+    }
+  },
+
+  updateProjectTag: async (id, data) => {
+    try {
+      const updated = await window.electronAPI.updateProjectTag(id, data)
+      set((s) => ({ tags: s.tags.map((t) => (t.id === id ? updated : t)) }))
+    } catch (err) {
+      console.error('[updateProjectTag] Error:', err)
+      throw err
+    }
+  },
+
+  deleteProjectTag: async (id) => {
+    try {
+      await window.electronAPI.deleteProjectTag(id)
+      set((s) => ({
+        tags: s.tags.filter((t) => t.id !== id),
+        // Clean up from local tasks
+        tasks: s.tasks.map((t) =>
+          t.tags.includes(id) ? { ...t, tags: t.tags.filter((tid) => tid !== id) } : t
+        ),
+      }))
+    } catch (err) {
+      console.error('[deleteProjectTag] Error:', err)
+      throw err
+    }
   },
 }))

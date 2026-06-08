@@ -93,6 +93,13 @@ function createTables(): void {
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (column_id) REFERENCES columns(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS project_tags (
+      id TEXT PRIMARY KEY,
+      project_path TEXT NOT NULL,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL
+    );
   `)
 }
 

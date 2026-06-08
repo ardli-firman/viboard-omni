@@ -86,6 +86,13 @@ export interface RegisteredProject {
   lastOpenedAt: number
 }
 
+export interface ProjectTag {
+  id: string
+  projectPath: string
+  name: string
+  color: string
+}
+
 // OMP agent JSON-mode events as forwarded to renderer
 export interface AgentOutputEvent {
   taskId: string

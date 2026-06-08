@@ -11,6 +11,7 @@ import { registerFileHandlers } from './ipc/files'
 import { registerProjectHandlers } from './ipc/project'
 import { registerGitHandlers } from './ipc/git'
 import { registerSettingsHandlers } from './ipc/settings'
+import { registerTagHandlers } from './ipc/tags'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -59,6 +60,7 @@ app.whenReady().then(() => {
   registerSettingsHandlers()
   registerColumnHandlers()
   registerTaskHandlers()
+  registerTagHandlers()
   registerTerminalHandlers()
   registerThemeHandlers()
   registerLogHandlers()

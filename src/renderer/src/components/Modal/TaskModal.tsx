@@ -14,6 +14,7 @@ import { Textarea } from '../ui/textarea'
 import { useProjectStore } from '../../stores/projectStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { ChevronDown, ChevronRight, Settings2, Check } from 'lucide-react'
+import { TagManagerModal } from './TagManagerModal'
 
 // ── Agent type options ────────────────────────────────────────────────────────
 
@@ -39,11 +40,13 @@ interface TaskModalProps {
 }
 
 export function TaskModal({ open, onOpenChange, task, onSave }: TaskModalProps): React.ReactElement {
-  const { currentProject } = useProjectStore()
+  const { currentProject, tags: projectTags } = useProjectStore()
   const { settings } = useSettingsStore()
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [tagManagerOpen, setTagManagerOpen] = useState(false)
   const [saving, setSaving] = useState(false)
 
   // Agent type — always saved per-task (independent of advanced config toggle)
@@ -63,6 +66,7 @@ export function TaskModal({ open, onOpenChange, task, onSave }: TaskModalProps):
     if (open) {
       setTitle(task?.title ?? '')
       setDescription(task?.description ?? '')
+      setSelectedTags(task?.tags ?? [])
       setShowAdvanced(false)
 
       // ── Agent type: use task's saved type, fallback to global default ──
@@ -111,7 +115,7 @@ export function TaskModal({ open, onOpenChange, task, onSave }: TaskModalProps):
       await onSave({
         title: title.trim(),
         description: description.trim(),
-        tags: [],
+        tags: selectedTags,
         agentType,      // always sent — agentType is always per-task
         agentConfig,    // only set when advanced overrides are enabled
       })
@@ -154,6 +158,59 @@ export function TaskModal({ open, onOpenChange, task, onSave }: TaskModalProps):
               placeholder="Optional description"
               rows={3}
             />
+          </div>
+
+          {/* Tags Selection */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-semibold text-foreground">Tags</label>
+              <button
+                type="button"
+                onClick={() => setTagManagerOpen(true)}
+                className="text-xs font-semibold text-primary hover:underline cursor-pointer"
+              >
+                Manage Tags
+              </button>
+            </div>
+            
+            {projectTags.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground italic bg-muted/20 p-2.5 rounded-xl border border-dashed text-center">
+                No tags created yet. Click "Manage Tags" to customize.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1.5 border border-border/30 rounded-xl bg-background/50">
+                {projectTags.map((tag) => {
+                  const isSelected = selectedTags.includes(tag.id)
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTags((prev) =>
+                          prev.includes(tag.id)
+                            ? prev.filter((id) => id !== tag.id)
+                            : [...prev, tag.id]
+                        )
+                      }}
+                      style={{
+                        backgroundColor: isSelected ? `${tag.color}20` : 'transparent',
+                        color: isSelected ? tag.color : 'hsl(var(--muted-foreground))',
+                        borderColor: isSelected ? tag.color : 'rgba(var(--border), 0.3)',
+                      }}
+                      className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-bold transition-all hover:scale-102 cursor-pointer ${
+                        isSelected ? 'ring-1 ring-offset-0 font-extrabold' : 'text-muted-foreground'
+                      }`}
+                    >
+                      <span
+                        className="h-1.5 w-1.5 rounded-full mr-1.5"
+                        style={{ backgroundColor: tag.color }}
+                      />
+                      {tag.name}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* Project badge */}
@@ -328,6 +385,7 @@ export function TaskModal({ open, onOpenChange, task, onSave }: TaskModalProps):
           </Button>
         </DialogFooter>
       </DialogContent>
+      <TagManagerModal open={tagManagerOpen} onOpenChange={setTagManagerOpen} />
     </Dialog>
   )
 }
