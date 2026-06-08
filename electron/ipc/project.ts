@@ -1,5 +1,5 @@
-import { app, ipcMain, dialog } from 'electron'
-import { existsSync, readFileSync, writeFileSync, statSync } from 'node:fs'
+import { app, ipcMain, dialog, BrowserWindow } from 'electron'
+import { existsSync, readFileSync, writeFileSync, statSync, watch, FSWatcher } from 'node:fs'
 import { join, basename } from 'node:path'
 import { getDatabase } from '../database/init'
 import { v4 as uuid } from 'uuid'
@@ -142,4 +142,75 @@ export function registerProjectHandlers(): void {
   ipcMain.handle('project:selectFolder', async (): Promise<string | null> => {
     return pickFolder()
   })
+
+  ipcMain.handle('project:watch', (_event: unknown, path: string): void => {
+    startWatching(path)
+  })
+
+  ipcMain.handle('project:unwatch', (): void => {
+    stopWatching()
+  })
 }
+
+let activeWatcher: FSWatcher | null = null
+
+function startWatching(dirPath: string): void {
+  if (activeWatcher) {
+    try {
+      activeWatcher.close()
+    } catch {}
+    activeWatcher = null
+  }
+
+  try {
+    let debounceTimeout: NodeJS.Timeout | null = null
+    activeWatcher = watch(dirPath, { recursive: true }, (_eventType, filename) => {
+      if (!filename) return
+
+      const normalized = filename.replace(/\\/g, '/')
+      
+      // Performance optimization: ignore node_modules instantly
+      if (normalized.includes('node_modules')) return
+
+      // Handle .git folder changes (commits, branches, staging/unstaging)
+      if (normalized.includes('.git')) {
+        const isGitRefOrIndex = 
+          normalized.endsWith('.git/index') || 
+          normalized.endsWith('.git/HEAD') || 
+          normalized.includes('.git/refs/') ||
+          normalized === 'index' ||
+          normalized === 'HEAD' ||
+          normalized.endsWith('index') ||
+          normalized.endsWith('HEAD')
+        
+        if (!isGitRefOrIndex) return
+      }
+
+      // Debounce updates by 300ms to group multiple rapid changes (e.g. compilation/save all)
+      if (debounceTimeout) clearTimeout(debounceTimeout)
+      debounceTimeout = setTimeout(() => {
+        const win = BrowserWindow.getAllWindows()[0]
+        if (win) {
+          win.webContents.send('project:file-changed')
+        }
+      }, 300)
+    })
+    console.log('[watcher] Started watching project:', dirPath)
+  } catch (err) {
+    console.error('[watcher] Failed to start watcher:', err)
+  }
+}
+
+function stopWatching(): void {
+  if (activeWatcher) {
+    try {
+      activeWatcher.close()
+      console.log('[watcher] Stopped watching')
+    } catch {}
+    activeWatcher = null
+  }
+}
+
+app.on('before-quit', () => {
+  stopWatching()
+})

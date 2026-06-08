@@ -155,6 +155,22 @@ const api = {
 
   getTheme: (): Promise<ThemeMode> => ipcRenderer.invoke('theme:get'),
   setTheme: (theme: ThemeMode): Promise<void> => ipcRenderer.invoke('theme:set', theme),
+
+  watchProject: (path: string): Promise<void> => ipcRenderer.invoke('project:watch', path),
+  unwatchProject: (): Promise<void> => ipcRenderer.invoke('project:unwatch'),
+
+  onProjectFileChanged: (callback: () => void): IpcHandler => {
+    const handler = (): void => callback()
+    ipcRenderer.on('project:file-changed', handler)
+    return handler
+  },
+  removeProjectFileChangedListener: (handler?: IpcHandler): void => {
+    if (handler) {
+      ipcRenderer.removeListener('project:file-changed', handler)
+    } else {
+      ipcRenderer.removeAllListeners('project:file-changed')
+    }
+  },
   log: {
     info: (...args: unknown[]): void => {
       const isDev = process.env.NODE_ENV === 'development' || !!(process as any).defaultApp
