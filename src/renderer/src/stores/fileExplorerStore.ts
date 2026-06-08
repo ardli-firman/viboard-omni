@@ -82,6 +82,7 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
       const tree = await window.electronAPI.getFileTree(rootPath)
       set({ tree, treeLoading: false })
       await get().refreshGitStatus()
+      await window.electronAPI.watchProject(rootPath)
     } catch (err) {
       console.error('[fileExplorer] Failed to load tree:', err)
       set({ treeLoading: false, treeError: String(err) })
@@ -270,6 +271,7 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   setRootPath: (path: string | null) => {
     if (path === get().rootPath) return
     if (path === null) {
+      void window.electronAPI.unwatchProject()
       set({
         rootPath: null,
         tree: [],

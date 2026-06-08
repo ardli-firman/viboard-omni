@@ -34,6 +34,20 @@ export function ExplorerPanel(): ReactElement {
     }
   }, [currentProject, loadTree, setRootPath, closeAllFiles])
 
+  useEffect(() => {
+    if (!rootPath) return
+
+    const handler = (): void => {
+      void loadTree(rootPath)
+    }
+
+    const token = window.electronAPI.onProjectFileChanged(handler)
+
+    return () => {
+      window.electronAPI.removeProjectFileChangedListener(token)
+    }
+  }, [rootPath, loadTree])
+
   const activeFile = openFiles.find((f) => f.path === activeFilePath)
   const showEditor = activeFilePath !== null && activeFile !== undefined
   const activeView = showEditor ? 'editor' : 'explorer'
