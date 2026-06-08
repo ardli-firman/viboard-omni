@@ -44,6 +44,25 @@ function migrateSchema(): void {
   } catch {
     // Column already exists
   }
+
+  // v5: Add agent_config JSON column for per-task agent CLI overrides
+  try {
+    db.exec('ALTER TABLE tasks ADD COLUMN agent_config TEXT DEFAULT NULL')
+    console.log('[db] Migration: added agent_config to tasks table')
+  } catch {
+    // Column already exists
+  }
+
+  // v6: Rename legacy 'pi-agent' agent_type to 'oh-my-pi'
+  //     Tasks created before the driver refactor had 'pi-agent' hardcoded.
+  try {
+    const result = db.prepare(`UPDATE tasks SET agent_type = 'oh-my-pi' WHERE agent_type = 'pi-agent'`).run()
+    if (result.changes > 0) {
+      console.log(`[db] Migration v6: updated ${result.changes} task(s) from pi-agent → oh-my-pi`)
+    }
+  } catch (err) {
+    console.error('[db] Migration v6 failed:', err)
+  }
 }
 
 function createTables(): void {
@@ -65,7 +84,7 @@ function createTables(): void {
       column_id TEXT NOT NULL,
       "order" INTEGER NOT NULL DEFAULT 0,
       project_path TEXT DEFAULT '',
-      agent_type TEXT NOT NULL DEFAULT 'pi-agent',
+      agent_type TEXT NOT NULL DEFAULT 'oh-my-pi',
       agent_status TEXT NOT NULL DEFAULT 'idle',
       agent_session_id TEXT DEFAULT NULL,
       custom_agent_command TEXT,

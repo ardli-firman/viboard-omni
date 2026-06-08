@@ -1,5 +1,15 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Column, Task, ThemeMode, RegisteredProject, AgentOutputEvent, AgentActivity } from '../src/shared/types'
+import type {
+  Column,
+  Task,
+  ThemeMode,
+  RegisteredProject,
+  AgentOutputEvent,
+  AgentActivity,
+  AgentType,
+  AgentCliConfig,
+  AppSettings,
+} from '../src/shared/types'
 import type { FileEntry, FileTreeItem } from './ipc/files'
 
 type AgentStatus = 'idle' | 'running' | 'completed' | 'error'
@@ -52,9 +62,30 @@ const api = {
   moveTask: (taskId: string, columnId: string, order: number): Promise<Task> =>
     ipcRenderer.invoke('task:move', taskId, columnId, order),
 
+  // ── Global App Settings ──────────────────────────────────────────
+  getSettings: (): Promise<AppSettings> => ipcRenderer.invoke('settings:get'),
+  saveSettings: (patch: Partial<AppSettings>): Promise<AppSettings> =>
+    ipcRenderer.invoke('settings:set', patch),
+
   // ── Terminal PTY methods ─────────────────────────────────────────
-  spawnAgentPty: (taskId: string, projectPath: string, cols: number, rows: number): Promise<void> =>
-    ipcRenderer.invoke('agent:pty:spawn', { taskId, projectPath, cols, rows }),
+  spawnAgentPty: (
+    taskId: string,
+    projectPath: string,
+    cols: number,
+    rows: number,
+    agentType: AgentType,
+    globalAgentConfig: Partial<AgentCliConfig> | undefined,
+    taskAgentConfig: Partial<AgentCliConfig> | undefined,
+  ): Promise<void> =>
+    ipcRenderer.invoke('agent:pty:spawn', {
+      taskId,
+      projectPath,
+      cols,
+      rows,
+      agentType,
+      globalAgentConfig,
+      taskAgentConfig,
+    }),
   sendAgentPtyData: (taskId: string, data: string): Promise<void> =>
     ipcRenderer.invoke('agent:pty:data', { taskId, data }),
   resizeAgentPty: (taskId: string, cols: number, rows: number): Promise<void> =>

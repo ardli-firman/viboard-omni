@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { Task } from '@shared/types'
+import type { Task, AgentType, AgentCliConfig } from '@shared/types'
 import { KanbanColumn } from './Column'
 import { TaskModal } from '../Modal/TaskModal'
 import { ColumnModal } from '../Modal/ColumnModal'
@@ -266,15 +266,29 @@ export function Board(): React.ReactElement {
     setTaskModalOpen(true)
   }
 
-  async function handleSaveTask(data: { title: string; description: string; tags: string[] }): Promise<void> {
+  async function handleSaveTask(data: {
+    title: string
+    description: string
+    tags: string[]
+    agentType: AgentType
+    agentConfig?: Partial<AgentCliConfig>
+  }): Promise<void> {
     if (editingTask) {
-      await updateTask(editingTask.id, { title: data.title, description: data.description, tags: data.tags })
+      await updateTask(editingTask.id, {
+        title: data.title,
+        description: data.description,
+        tags: data.tags,
+        agentType: data.agentType,
+        agentConfig: data.agentConfig,
+      })
     } else {
       await addTask({
         title: data.title,
         description: data.description,
         columnId: taskColumnId,
         tags: data.tags,
+        agentType: data.agentType,
+        agentConfig: data.agentConfig,
       })
     }
   }

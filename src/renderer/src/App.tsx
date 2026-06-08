@@ -10,17 +10,20 @@ import { ProjectPicker } from './components/ProjectPicker/ProjectPicker'
 import { useThemeStore } from './stores/themeStore'
 import { useTerminalStore } from './stores/terminalStore'
 import { useProjectStore } from './stores/projectStore'
+import { useSettingsStore } from './stores/settingsStore'
 import type { AgentActivity } from '@shared/types'
 
 function App(): React.ReactElement {
   const { init } = useThemeStore()
   const { panelOpen, activeTaskId, setStatus, setActivity } = useTerminalStore()
   const { currentProject, loadProjects, setAgentStatus } = useProjectStore()
+  const { loadSettings } = useSettingsStore()
 
   useEffect(() => {
     init()
     loadProjects()
-  }, [init, loadProjects])
+    loadSettings()
+  }, [init, loadProjects, loadSettings])
 
   // Bridge OMP agent session status from main process into the renderer stores.
   // Uses scoped listener: stores the handler ref for targeted cleanup.

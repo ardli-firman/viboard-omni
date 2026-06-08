@@ -1,10 +1,10 @@
 import { ipcMain, BrowserWindow, app } from 'electron'
-import * as os from 'node:os'
 import * as path from 'node:path'
 import { existsSync, mkdirSync } from 'node:fs'
 import { getDatabase } from '../database/init'
 import * as pty from '@cocktailpeanut/node-pty-prebuilt-multiarch'
-import type { AgentStatus, AgentActivity } from '../../src/shared/types'
+import type { AgentStatus, AgentActivity, AgentType, AgentCliConfig, AppSettings } from '../../src/shared/types'
+import { getDriver, getDriverDefaults } from '../agents/registry'
 
 interface PtyRun {
   taskId: string
@@ -14,6 +14,8 @@ interface PtyRun {
   activity: AgentActivity
   lastOutputAt: number
   idleTimer: ReturnType<typeof setTimeout> | null
+  /** The driver type used for this run — for activity detection */
+  agentType: AgentType
 }
 
 const runs = new Map<string, PtyRun>()
@@ -37,7 +39,6 @@ function startOutputFlusher(): void {
         outputBuffers.set(taskId, '')
       }
     }
-    // Stop timer when no active buffers
     if (outputBuffers.size === 0 && flushTimer) {
       clearInterval(flushTimer)
       flushTimer = null
@@ -47,7 +48,6 @@ function startOutputFlusher(): void {
 
 function appendOutput(taskId: string, chunk: string): void {
   let combined = (outputBuffers.get(taskId) ?? '') + chunk
-  // Enforce max buffer size — drop oldest content to prevent memory growth
   if (combined.length > OUTPUT_BUFFER_MAX) {
     combined = combined.slice(-OUTPUT_BUFFER_MAX)
   }
@@ -64,43 +64,15 @@ function flushOutput(taskId: string): void {
 }
 
 // ── Activity Detection ───────────────────────────────────────────────
-// Detects the real-time operational state of the OMP agent by analyzing
-// PTY output patterns (spinner chars, tool headers, text flow, silence).
+// Delegated to the active driver for each run.
 
 /** How many ms of silence before we consider the agent "waiting" at prompt */
 const IDLE_THRESHOLD_MS = 3000
 
-/**
- * Heuristic patterns to detect what the OMP agent is doing.
- * These are matched against each raw PTY output chunk.
- */
-function detectActivity(chunk: string): AgentActivity | null {
-  // Strip ANSI escape codes for pattern matching
-  const clean = chunk.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '')
-
-  // Tool use patterns: OMP shows tool headers like "⚡ bash", "✏ edit", "📝 write", etc.
-  if (/[⚡✏📝🔍🌐🔧▶]\s*(bash|edit|write|read|grep|find|web_search|browser|python|task|lsp)/i.test(clean)) {
-    return 'tool_use'
-  }
-
-  // Thinking/spinner patterns: OMP shows spinner characters or "thinking" indicators
-  if (/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⣾⣽⣻⢿⡿⣟⣯⣷]/u.test(chunk) || /thinking|reasoning/i.test(clean)) {
-    return 'thinking'
-  }
-
-  // If there's substantial printable text (not just control chars), agent is responding
-  const printable = clean.replace(/[\r\n\s]/g, '')
-  if (printable.length > 2) {
-    return 'responding'
-  }
-
-  return null
-}
-
 function updateActivity(taskId: string, activity: AgentActivity): void {
   const run = runs.get(taskId)
   if (!run) return
-  if (run.activity === activity) return // no change
+  if (run.activity === activity) return
   run.activity = activity
   broadcast('agent:activity', { taskId, activity })
 }
@@ -109,14 +81,12 @@ function resetIdleTimer(taskId: string): void {
   const run = runs.get(taskId)
   if (!run) return
 
-  // Clear existing timer
   if (run.idleTimer) {
     clearTimeout(run.idleTimer)
   }
 
   run.lastOutputAt = Date.now()
 
-  // Set new timer: if no output for IDLE_THRESHOLD_MS, mark as 'waiting'
   run.idleTimer = setTimeout(() => {
     const currentRun = runs.get(taskId)
     if (currentRun && currentRun.status === 'running') {
@@ -128,20 +98,6 @@ function resetIdleTimer(taskId: string): void {
 // ── Helpers ──────────────────────────────────────────────────────────
 
 const MAX_CONCURRENT = 3
-
-function resolveOmpBinary(): string {
-  if (process.platform === 'win32') {
-    const candidates = [
-      path.join(os.homedir(), '.bun', 'bin', 'omp.exe'),
-      path.join(os.homedir(), '.bun', 'bin', 'omp.cmd'),
-    ]
-    for (const c of candidates) {
-      if (existsSync(c)) return c
-    }
-    return 'omp.cmd' // node-pty on Windows usually needs the exact extension
-  }
-  return 'omp'
-}
 
 function broadcast(channel: string, payload: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -197,17 +153,14 @@ async function killPtyAsync(taskId: string): Promise<void> {
 
 /**
  * Evict the oldest NON-RUNNING session if at the concurrent limit.
- * Running sessions are NEVER evicted — we don't cut off active agent work.
- * If all sessions are running, the limit becomes a soft cap (no eviction).
  */
 async function evictOldestIfNeeded(): Promise<void> {
   if (runs.size < MAX_CONCURRENT) return
 
-  // Find the oldest session that is NOT running (completed/error/idle)
   let candidateId: string | null = null
   let candidateTime = Infinity
   for (const [id, run] of runs) {
-    if (run.status === 'running') continue // ← protect running agents
+    if (run.status === 'running') continue
     if (run.createdAt < candidateTime) {
       candidateTime = run.createdAt
       candidateId = id
@@ -219,7 +172,40 @@ async function evictOldestIfNeeded(): Promise<void> {
     sendAgentStatus(candidateId, 'idle')
     runs.delete(candidateId)
   }
-  // If candidateId is null, all sessions are running — soft cap, allow exceeding
+}
+
+// ── Config Resolution ─────────────────────────────────────────────────────────
+/**
+ * Resolve the final merged config for a spawn:
+ *   driver defaults  ←  global settings  ←  task overrides
+ *
+ * @param agentType    The selected agent type
+ * @param globalConfig Per-type config from AppSettings.agentConfigs
+ * @param taskConfig   Per-task override from Task.agentConfig
+ */
+function resolveConfig(
+  agentType: AgentType,
+  globalConfig: Partial<AgentCliConfig> | undefined,
+  taskConfig: Partial<AgentCliConfig> | undefined,
+): Partial<AgentCliConfig> {
+  const driverDefaults = getDriverDefaults(agentType)
+  return {
+    ...driverDefaults,
+    ...(globalConfig ?? {}),
+    ...(taskConfig ?? {}),
+    agentType,
+    // Merge extra env and extra args additively
+    extraEnv: {
+      ...(driverDefaults.extraEnv ?? {}),
+      ...(globalConfig?.extraEnv ?? {}),
+      ...(taskConfig?.extraEnv ?? {}),
+    },
+    extraArgs: [
+      ...(driverDefaults.extraArgs ?? []),
+      ...(globalConfig?.extraArgs ?? []),
+      ...(taskConfig?.extraArgs ?? []),
+    ],
+  }
 }
 
 // ── IPC Handlers ─────────────────────────────────────────────────────
@@ -227,30 +213,60 @@ async function evictOldestIfNeeded(): Promise<void> {
 export function registerTerminalHandlers(): void {
   ipcMain.handle(
     'agent:pty:spawn',
-    async (_event: unknown, input: { taskId: string; projectPath: string; cols: number; rows: number }): Promise<void> => {
-      const { taskId, projectPath, cols = 80, rows = 24 } = input
+    async (
+      _event: unknown,
+      input: {
+        taskId: string
+        projectPath: string
+        cols: number
+        rows: number
+        agentType: AgentType
+        globalAgentConfig: Partial<AgentCliConfig> | undefined
+        taskAgentConfig: Partial<AgentCliConfig> | undefined
+      },
+    ): Promise<void> => {
+      const {
+        taskId,
+        projectPath,
+        cols = 80,
+        rows = 24,
+        agentType = 'oh-my-pi',
+        globalAgentConfig,
+        taskAgentConfig,
+      } = input
 
-      // If this task already has a running session, skip respawn
+      // Skip respawn for already-running session
       const existing = runs.get(taskId)
       if (existing && existing.status === 'running') {
         return
       }
 
-      // Evict oldest session if at the concurrent limit
       await evictOldestIfNeeded()
 
-      const ompPath = resolveOmpBinary()
       const cwd = projectPath && existsSync(projectPath) ? projectPath : process.cwd()
 
+      // Safety: if the agentType is not in the registry (e.g. legacy 'pi-agent' rows
+      // that weren't caught by the DB migration), fall back to 'oh-my-pi'.
+      const KNOWN_TYPES: AgentType[] = ['oh-my-pi', 'gemini-cli', 'pi-agent', 'hermes', 'custom']
+      const safeAgentType: AgentType = KNOWN_TYPES.includes(agentType as AgentType)
+        ? agentType
+        : 'oh-my-pi'
+
+      // Resolve driver and merged config
+      const driver = getDriver(safeAgentType)
+      const mergedConfig = resolveConfig(safeAgentType, globalAgentConfig, taskAgentConfig)
+
+      // Build session file path (used by drivers that support session persistence)
+      const sessionDir = path.join(app.getPath('userData'), 'agent-sessions', safeAgentType)
+      if (!existsSync(sessionDir)) {
+        mkdirSync(sessionDir, { recursive: true })
+      }
+      const sessionFile = path.join(sessionDir, `${taskId}.jsonl`)
+
       try {
-        const sessionDir = path.join(app.getPath('userData'), 'omp-sessions')
-        if (!existsSync(sessionDir)) {
-          mkdirSync(sessionDir, { recursive: true })
-        }
-        const sessionFile = path.join(sessionDir, `${taskId}.jsonl`)
-        
-        const ompArgs = process.platform === 'win32' ? ['/c', ompPath, '--resume', sessionFile] : ['--resume', sessionFile]
-        
+        const { file, args } = driver.buildSpawnCommand(mergedConfig, process.platform, sessionFile)
+        const driverEnv = driver.buildEnv(mergedConfig, taskId, cwd)
+
         // Clean environment variables to prevent Electron/Vite dev tooling pollution
         const cleanEnv = { ...process.env }
         delete cleanEnv.NODE_OPTIONS
@@ -262,18 +278,16 @@ export function registerTerminalHandlers(): void {
           }
         }
 
-        const childProcess = pty.spawn(process.platform === 'win32' ? 'cmd.exe' : ompPath, ompArgs, {
+        console.log(`[agent:spawn] driver=${safeAgentType} file=${file} args=${JSON.stringify(args)} cwd=${cwd}`)
+
+        const childProcess = pty.spawn(file, args, {
           name: 'xterm-color',
           cols,
           rows,
           cwd,
           env: {
             ...cleanEnv,
-            OMP_TASK_ID: taskId,
-            OMP_PROJECT_PATH: cwd,
-            OMP_SESSION_PER_TASK: '1',
-            FORCE_COLOR: '1',
-            NO_UPDATE: '1',
+            ...driverEnv,
           } as Record<string, string>,
         })
 
@@ -285,41 +299,39 @@ export function registerTerminalHandlers(): void {
           activity: 'waiting',
           lastOutputAt: Date.now(),
           idleTimer: null,
+          agentType: safeAgentType,
         }
         runs.set(taskId, run)
 
         sendAgentStatus(taskId, 'running')
 
-        // Use batched output instead of direct broadcast
-        // Also detect agent activity from output patterns
         childProcess.onData((data) => {
           appendOutput(taskId, data)
 
-          // Detect activity from output content
-          const detected = detectActivity(data)
-          if (detected) {
-            updateActivity(taskId, detected)
+          // Delegate activity detection to the driver
+          const currentRun = runs.get(taskId)
+          if (currentRun) {
+            const detected = driver.detectActivity(data)
+            if (detected) {
+              updateActivity(taskId, detected)
+            }
           }
 
-          // Reset the idle timer (will fire 'waiting' after silence)
           resetIdleTimer(taskId)
         })
 
         childProcess.onExit((e) => {
-          // Clear idle timer
           const exitRun = runs.get(taskId)
           if (exitRun?.idleTimer) clearTimeout(exitRun.idleTimer)
 
-          // Flush remaining buffered output before status change
           flushOutput(taskId)
           const finalStatus: AgentStatus = e.exitCode === 0 ? 'completed' : 'error'
           sendAgentStatus(taskId, finalStatus)
           runs.delete(taskId)
         })
-
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
-        appendOutput(taskId, `\r\n\x1b[31m[failed to spawn omp]\x1b[0m ${message}\r\n`)
+        appendOutput(taskId, `\r\n\x1b[31m[viboard] Failed to spawn agent (${safeAgentType})\x1b[0m ${message}\r\n`)
         flushOutput(taskId)
         sendAgentStatus(taskId, 'error')
       }
@@ -362,7 +374,6 @@ export function shutdownAllSessions(): void {
     killPty(taskId)
     runs.delete(taskId)
   }
-  // Clear any remaining flush timer
   if (flushTimer) {
     clearInterval(flushTimer)
     flushTimer = null

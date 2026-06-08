@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Column, Task, AgentType, AgentStatus, RegisteredProject } from '@shared/types'
+import { useSettingsStore } from './settingsStore'
 
 interface ProjectState {
   projects: RegisteredProject[]
@@ -18,7 +19,7 @@ interface ProjectState {
   updateColumn: (id: string, data: { title?: string; color?: string }) => Promise<void>
   deleteColumn: (id: string) => Promise<void>
   reorderColumns: (items: { id: string; order: number }[]) => void
-  addTask: (data: { title: string; description: string; columnId: string; tags: string[] }) => Promise<void>
+  addTask: (data: { title: string; description: string; columnId: string; tags: string[]; agentType?: AgentType; agentConfig?: Partial<import('@shared/types').AgentCliConfig> }) => Promise<void>
   updateTask: (id: string, data: Partial<Omit<Task, 'id' | 'createdAt' | 'updatedAt'>>) => Promise<void>
   deleteTask: (id: string) => Promise<void>
   moveTask: (taskId: string, columnId: string, order: number) => Promise<void>
@@ -153,14 +154,18 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if (!projectPath) throw new Error('No project open')
     const tasksInCol = get().tasks.filter((t) => t.columnId === data.columnId)
     const order = tasksInCol.length
+    // Use provided agent type or fall back to global default
+    const defaultAgentType: AgentType =
+      data.agentType ?? useSettingsStore.getState().settings.defaultAgentType ?? 'oh-my-pi'
     const task = await window.electronAPI.createTask({
       title: data.title,
       description: data.description,
       columnId: data.columnId,
       order,
       projectPath,
-      agentType: 'pi-agent' as AgentType,
+      agentType: defaultAgentType,
       agentStatus: 'idle' as AgentStatus,
+      agentConfig: data.agentConfig,
       tags: data.tags,
     })
     set((s) => ({ tasks: [...s.tasks, task] }))

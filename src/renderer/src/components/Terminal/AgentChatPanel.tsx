@@ -4,6 +4,7 @@ import '@xterm/xterm/css/xterm.css'
 import { TerminalManager } from './TerminalManager'
 import { useTerminalStore } from '../../stores/terminalStore'
 import { useProjectStore } from '../../stores/projectStore'
+import { useSettingsStore } from '../../stores/settingsStore'
 import { Button } from '../ui/button'
 import { X, Terminal as TerminalIcon } from 'lucide-react'
 
@@ -20,6 +21,7 @@ const statusLabels: Record<string, { text: string; dot: string }> = {
 export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElement {
   const { closePanel, panelHeight, setPanelHeight } = useTerminalStore()
   const { tasks } = useProjectStore()
+  const { settings } = useSettingsStore()
   const status = useTerminalStore((s) => s.status[taskId]) ?? 'idle'
   const activity = useTerminalStore((s) => s.activity[taskId]) ?? 'waiting'
 
@@ -129,12 +131,19 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
 
         if (currentStatus !== 'running') {
           if (currentTask) {
+            const agentType = currentTask.agentType ?? settings.defaultAgentType ?? 'oh-my-pi'
+            const globalAgentConfig = settings.agentConfigs[agentType]
+            const taskAgentConfig = currentTask.agentConfig
+
             term.write('\x1b[38;2;143;194;155m[Terminal] Spawning agent...\x1b[0m\r\n')
             window.electronAPI.spawnAgentPty(
               taskId,
               currentTask.projectPath,
               term.cols || 80,
               term.rows || 30,
+              agentType,
+              globalAgentConfig,
+              taskAgentConfig,
             )
           } else {
             term.write('\x1b[31m[Terminal] Error: Task not found.\x1b[0m\r\n')
