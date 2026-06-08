@@ -321,10 +321,16 @@ export function Board(): React.ReactElement {
   function autoFit(): void {
     if (!boardRef.current || !containerRef.current) return
     const boardWidth = boardRef.current.scrollWidth
+    const boardHeight = boardRef.current.scrollHeight
     const containerWidth = containerRef.current.clientWidth
-    if (boardWidth > 0 && containerWidth > 0) {
+    const containerHeight = containerRef.current.clientHeight
+
+    if (boardWidth > 0 && containerWidth > 0 && boardHeight > 0 && containerHeight > 0) {
       const padding = 48
-      const fitScale = Math.max(0.1, Math.min(1, (containerWidth - padding) / boardWidth))
+      const scaleX = (containerWidth - padding) / boardWidth
+      const scaleY = (containerHeight - padding) / boardHeight
+      const fitScale = Math.max(0.1, Math.min(1, Math.min(scaleX, scaleY)))
+
       setScale(fitScale)
       setTranslateX(0)
       setTranslateY(0)
