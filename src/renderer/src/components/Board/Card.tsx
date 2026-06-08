@@ -20,6 +20,7 @@ const AGENT_DISPLAY: Record<AgentType, { label: string; icon: string }> = {
   'gemini-cli': { label: 'Gemini', icon: '✨' },
   'pi-agent': { label: 'Pi Agent', icon: '🥧' },
   'hermes': { label: 'Hermes', icon: '🪄' },
+  'opencode': { label: 'OpenCode', icon: '🖥️' },
   'custom': { label: 'Custom', icon: '⚙️' },
 }
 

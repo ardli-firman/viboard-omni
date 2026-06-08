@@ -23,6 +23,7 @@ const AGENT_OPTIONS: { type: AgentType; label: string; icon: string; description
   { type: 'gemini-cli', label: 'Gemini CLI',  icon: '✨', description: 'Google Gemini CLI' },
   { type: 'pi-agent',   label: 'Pi Agent',    icon: '🥧', description: 'Pi Agent CLI' },
   { type: 'hermes',     label: 'Hermes',      icon: '🪄', description: 'Hermes Agent CLI' },
+  { type: 'opencode',   label: 'OpenCode',    icon: '🖥️', description: 'OpenCode AI agent' },
   { type: 'custom',     label: 'Custom',      icon: '⚙️', description: 'Custom command' },
 ]
 

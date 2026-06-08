@@ -53,6 +53,15 @@ const DEFAULT_SETTINGS: AppSettings = {
       sessionArg: null,
       sessionEnvVar: null,
     },
+    opencode: {
+      agentType: 'opencode',
+      binaryPath: null,
+      extraArgs: [],
+      extraEnv: {},
+      sessionMode: 'none',
+      sessionArg: null,
+      sessionEnvVar: null,
+    },
     custom: {
       agentType: 'custom',
       binaryPath: null,

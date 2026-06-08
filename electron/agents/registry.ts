@@ -25,6 +25,7 @@ import ohMyPiDriver from './drivers/oh-my-pi'
 import geminiCliDriver from './drivers/gemini-cli'
 import piAgentDriver from './drivers/pi-agent'
 import hermesDriver from './drivers/hermes'
+import opencodeDriver from './drivers/opencode'
 import customDriver from './drivers/custom'
 
 // ── Registry ──────────────────────────────────────────────────────────────────
@@ -33,6 +34,7 @@ export const AGENT_DRIVERS: Record<AgentType, AgentDriver> = {
   'oh-my-pi': ohMyPiDriver,
   'gemini-cli': geminiCliDriver,
   'pi-agent': piAgentDriver,
+  'opencode': opencodeDriver,
   'hermes': hermesDriver,
   'custom': customDriver,
 }
@@ -79,6 +81,15 @@ export function getDriverDefaults(type: AgentType): Partial<AgentCliConfig> {
     },
     'hermes': {
       agentType: 'hermes',
+      binaryPath: null,
+      extraArgs: [],
+      extraEnv: {},
+      sessionMode: 'none',
+      sessionArg: null,
+      sessionEnvVar: null,
+    },
+    'opencode': {
+      agentType: 'opencode',
       binaryPath: null,
       extraArgs: [],
       extraEnv: {},

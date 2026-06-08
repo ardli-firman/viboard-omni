@@ -6,9 +6,10 @@ export type ThemeMode = 'dark' | 'light'
  * 'gemini-cli' — Google Gemini CLI (slot, binary path user-defined)
  * 'pi-agent'   — Pi Agent CLI (slot, binary path user-defined)
  * 'hermes'     — Hermes Agent (slot, binary path user-defined)
+ * 'opencode'   — OpenCode AI agent (opencode.ai)
  * 'custom'     — Fully custom command, user provides binary + args
  */
-export type AgentType = 'oh-my-pi' | 'gemini-cli' | 'pi-agent' | 'hermes' | 'custom'
+export type AgentType = 'oh-my-pi' | 'gemini-cli' | 'pi-agent' | 'hermes' | 'opencode' | 'custom'
 
 export type AgentStatus = 'idle' | 'running' | 'completed' | 'error'
 

@@ -58,6 +58,14 @@ const AGENT_META: AgentMeta[] = [
     supportsSession: false,
   },
   {
+    type: 'opencode',
+    label: 'OpenCode',
+    description: 'OpenCode AI agent — opencode.ai',
+    icon: '🖥️',
+    defaultBinary: 'opencode',
+    supportsSession: false,
+  },
+  {
     type: 'custom',
     label: 'Custom Command',
     description: 'Fully custom agent CLI — define your own binary and args',
