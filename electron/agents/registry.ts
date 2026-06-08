@@ -73,8 +73,8 @@ export function getDriverDefaults(type: AgentType): Partial<AgentCliConfig> {
       binaryPath: null,
       extraArgs: [],
       extraEnv: {},
-      sessionMode: 'none',
-      sessionArg: null,
+      sessionMode: 'resume-file',
+      sessionArg: '--session',
       sessionEnvVar: null,
     },
     'hermes': {
