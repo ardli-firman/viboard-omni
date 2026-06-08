@@ -6,7 +6,7 @@ import { useTerminalStore } from '../../stores/terminalStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { Button } from '../ui/button'
-import { X, Terminal as TerminalIcon } from 'lucide-react'
+import { X, Terminal as TerminalIcon, Minus, Maximize2, Minimize2, ChevronUp } from 'lucide-react'
 
 interface AgentChatPanelProps {
   taskId: string
@@ -47,6 +47,7 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
 
   const statusInfo = getStatusInfo()
 
+  const [sizeMode, setSizeMode] = useState<'normal' | 'minimized' | 'maximized'>('normal')
   const [isResizing, setIsResizing] = useState(false)
   const lastYRef = useRef<number>(0)
   const terminalContainerRef = useRef<HTMLDivElement>(null)
@@ -82,6 +83,7 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
   }, [isResizing, setPanelHeight])
 
   const handleMouseDown = (e: React.MouseEvent): void => {
+    if (sizeMode !== 'normal') return // Disable dragging when minimized or maximized
     e.preventDefault()
     lastYRef.current = e.clientY
     setIsResizing(true)
@@ -210,18 +212,63 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
     return () => observer.disconnect()
   }, [taskId, handleResize])
 
+  // Trigger terminal refit after transition animations complete
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      handleResize()
+    }, 320)
+    return () => clearTimeout(timer)
+  }, [sizeMode, handleResize])
+
+  const getPanelHeightStyle = (): string | number => {
+    if (sizeMode === 'minimized') return '38px'
+    if (sizeMode === 'maximized') return '80vh'
+    return panelHeight
+  }
+
+  const handleHeaderDoubleClick = (): void => {
+    if (sizeMode === 'minimized') {
+      setSizeMode('normal')
+    } else if (sizeMode === 'normal') {
+      setSizeMode('minimized')
+    } else {
+      setSizeMode('normal')
+    }
+  }
+
+  const handleHeaderClick = (): void => {
+    if (sizeMode === 'minimized') {
+      setSizeMode('normal')
+    }
+  }
+
   // ── Render ────────────────────────────────────────────────────────
 
   return (
     <div 
-      className={`relative shrink-0 flex flex-col border-t border-border/30 bg-[#111613] text-[#e6ebe7] transition-[height] duration-0 ${isResizing ? 'select-none' : ''}`}
-      style={{ height: panelHeight }}
+      className={`relative shrink-0 flex flex-col border-t border-border/30 bg-[#111613] text-[#e6ebe7] transition-all duration-300 ${
+        isResizing ? 'select-none transition-none' : ''
+      }`}
+      style={{ height: getPanelHeightStyle() }}
     >
+      {/* Resizer handle bar (visible only in normal size mode) */}
+      {sizeMode === 'normal' && (
+        <div 
+          className="absolute top-0 left-0 right-0 h-1.5 -translate-y-1/2 cursor-ns-resize z-50 bg-transparent hover:bg-primary/50 transition-all duration-150 group/resizer flex items-center justify-center"
+          onMouseDown={handleMouseDown}
+        >
+          <div className="w-12 h-1 rounded-full bg-muted-foreground/30 group-hover/resizer:bg-primary/80 transition-colors duration-150" />
+        </div>
+      )}
+
+      {/* Header bar */}
       <div 
-        className="absolute top-0 left-0 right-0 h-1 -translate-y-1/2 cursor-ns-resize z-50 bg-transparent hover:bg-primary/50 transition-colors"
-        onMouseDown={handleMouseDown}
-      />
-      <div className="flex shrink-0 items-center justify-between border-b border-border/25 px-4 py-2 shadow-xs bg-card">
+        className={`flex shrink-0 items-center justify-between border-b border-border/25 px-4 py-2 shadow-xs bg-card select-none ${
+          sizeMode === 'minimized' ? 'cursor-pointer hover:bg-muted/10' : 'cursor-default'
+        }`}
+        onDoubleClick={handleHeaderDoubleClick}
+        onClick={handleHeaderClick}
+      >
         <div className="flex min-w-0 items-center gap-2">
           <TerminalIcon className="h-4 w-4 shrink-0 text-primary animate-pulse" />
           <span className="text-xs font-extrabold uppercase tracking-wider text-card-foreground">Agent Terminal</span>
@@ -230,20 +277,76 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
             <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dot}`} />
             {statusInfo.text}
           </span>
+          {sizeMode === 'minimized' && (
+            <span className="text-[10px] text-muted-foreground/80 font-bold ml-4 animate-pulse">
+              (Minimized • Click to restore)
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          {/* Minimize / Restore button */}
+          {sizeMode === 'minimized' ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-lg text-muted-foreground hover:bg-muted active:scale-95 transition-all"
+              onClick={() => setSizeMode('normal')}
+              title="Restore panel"
+            >
+              <ChevronUp className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-lg text-muted-foreground hover:bg-muted active:scale-95 transition-all"
+              onClick={() => setSizeMode('minimized')}
+              title="Minimize to status bar"
+            >
+              <Minus className="h-4 w-4" />
+            </Button>
+          )}
+
+          {/* Maximize / Restore normal button */}
+          {sizeMode === 'maximized' ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-lg text-muted-foreground hover:bg-muted active:scale-95 transition-all"
+              onClick={() => setSizeMode('normal')}
+              title="Restore normal size"
+            >
+              <Minimize2 className="h-4 w-4" />
+            </Button>
+          ) : (
+            sizeMode !== 'minimized' && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 rounded-lg text-muted-foreground hover:bg-muted active:scale-95 transition-all"
+                onClick={() => setSizeMode('maximized')}
+                title="Maximize panel"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </Button>
+            )
+          )}
+
+          {/* Close button */}
           <Button 
             variant="ghost" 
             size="icon" 
             className="h-7 w-7 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive active:scale-95 transition-all" 
             onClick={closePanel}
+            title="Close session"
           >
             <X className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden p-3 font-mono">
+      {/* Terminal logs (hidden when minimized) */}
+      <div className={`flex-1 overflow-hidden p-3 font-mono ${sizeMode === 'minimized' ? 'hidden' : ''}`}>
         <div ref={terminalContainerRef} className="h-full w-full" />
       </div>
     </div>
