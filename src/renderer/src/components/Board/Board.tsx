@@ -62,6 +62,7 @@ export function Board(): React.ReactElement {
   const panStartRef = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null)
   const boardRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const dragStartColumnRef = useRef<string | null>(null)
 
   const sortedColumnsFromStore = useMemo(
     () => [...columns].sort((a, b) => a.order - b.order),
@@ -101,6 +102,23 @@ export function Board(): React.ReactElement {
   function handleDragStart(event: DragStartEvent): void {
     setActiveId(event.active.id as string)
     setActiveType((event.active.data.current?.type as 'task' | 'column' | undefined) ?? null)
+
+    const type = event.active.data.current?.type as 'task' | 'column' | undefined
+    if (type === 'task') {
+      const storeTasks = useProjectStore.getState().tasks
+      const task = storeTasks.find((t) => t.id === event.active.id)
+      if (task) {
+        dragStartColumnRef.current = task.columnId
+      }
+    } else {
+      dragStartColumnRef.current = null
+    }
+
+    window.electronAPI.log.info('[Board] handleDragStart:', {
+      activeId: event.active.id,
+      activeType: type,
+      dragStartColumn: dragStartColumnRef.current
+    })
   }
 
   function handleDragOver(event: DragOverEvent): void {
@@ -110,12 +128,18 @@ export function Board(): React.ReactElement {
     const activeType = active.data.current?.type as 'task' | 'column' | undefined
     if (activeType !== 'task') return
 
-    const activeTask = tasks.find((t) => t.id === active.id)
+    window.electronAPI.log.info('[Board] handleDragOver start:', {
+      activeId: active.id,
+      overId: over.id
+    })
+
+    const storeTasks = useProjectStore.getState().tasks
+    const activeTask = storeTasks.find((t) => t.id === active.id)
     if (!activeTask) return
 
     // Determine the target column
     let overColId: string
-    const overTask = tasks.find((t) => t.id === over.id)
+    const overTask = storeTasks.find((t) => t.id === over.id)
     if (overTask) {
       overColId = overTask.columnId
     } else if (sortedColumnsFromStore.some((c) => c.id === over.id)) {
@@ -127,7 +151,7 @@ export function Board(): React.ReactElement {
     const fromColId = activeTask.columnId
 
     if (fromColId === overColId) {
-      const colTasks = tasks
+      const colTasks = storeTasks
         .filter((t) => t.columnId === fromColId)
         .sort((a, b) => a.order - b.order)
       const activeIndex = colTasks.findIndex((t) => t.id === active.id)
@@ -148,7 +172,7 @@ export function Board(): React.ReactElement {
       }
     } else {
       // Reordering cross-column
-      const targetTasks = tasks
+      const targetTasks = storeTasks
         .filter((t) => t.columnId === overColId && t.id !== active.id)
         .sort((a, b) => a.order - b.order)
 
@@ -165,7 +189,7 @@ export function Board(): React.ReactElement {
       }
 
       // Reorder the source column to close the gap
-      const sourceTasks = tasks
+      const sourceTasks = storeTasks
         .filter((t) => t.columnId === fromColId && t.id !== active.id)
         .sort((a, b) => a.order - b.order)
       for (const [i, t] of sourceTasks.entries()) {
@@ -183,7 +207,14 @@ export function Board(): React.ReactElement {
 
   function handleDragEnd(event: DragEndEvent): void {
     const { active, over } = event
-    if (!over || active.id === over.id) {
+    window.electronAPI.log.info('[Board] handleDragEnd called:', {
+      activeId: active.id,
+      overId: over?.id,
+      activeType: active.data.current?.type,
+      dragStartColumn: dragStartColumnRef.current
+    })
+
+    if (!over) {
       setActiveId(null)
       setActiveType(null)
       return
@@ -192,10 +223,17 @@ export function Board(): React.ReactElement {
     const type = active.data.current?.type as 'task' | 'column' | undefined
 
     if (type === 'column') {
+      if (active.id === over.id) {
+        setActiveId(null)
+        setActiveType(null)
+        return
+      }
+      const storeColumns = useProjectStore.getState().columns
+      const storeTasks = useProjectStore.getState().tasks
       // Resolve target column id: over.id may be a column or a task inside a column
       let overColId = over.id as string
-      if (!sortedColumnsFromStore.some((c) => c.id === overColId)) {
-        const overTask = tasks.find((t) => t.id === over.id)
+      if (!storeColumns.some((c) => c.id === overColId)) {
+        const overTask = storeTasks.find((t) => t.id === over.id)
         if (overTask) overColId = overTask.columnId
         else {
           setActiveId(null)
@@ -227,9 +265,15 @@ export function Board(): React.ReactElement {
       return
     }
 
-    // Task reorder — state was already updated optimistically in handleDragOver.
-    // Here we just persist the final positions to the database.
-    const activeTask = tasks.find((t) => t.id === active.id)
+    // Task reorder
+    const storeTasks = useProjectStore.getState().tasks
+    const activeTask = storeTasks.find((t) => t.id === active.id)
+    window.electronAPI.log.info('[Board] handleDragEnd Task reorder state:', {
+      activeTaskFound: !!activeTask,
+      activeTaskColumn: activeTask?.columnId,
+      activeTaskOrder: activeTask?.order
+    })
+
     if (!activeTask) {
       setActiveId(null)
       setActiveType(null)
@@ -238,20 +282,35 @@ export function Board(): React.ReactElement {
 
     // Persist all tasks in the affected column(s) to the database.
     const affectedColIds = new Set<string>()
+    // Add current/new column ID
     affectedColIds.add(activeTask.columnId)
-    // If the drag started from a different column, persist that too
-    const overTask = tasks.find((t) => t.id === over.id)
-    if (overTask) affectedColIds.add(overTask.columnId)
-
-    for (const colId of affectedColIds) {
-      const colTasks = tasks.filter((t) => t.columnId === colId).sort((a, b) => a.order - b.order)
-      for (const [i, t] of colTasks.entries()) {
-        window.electronAPI.moveTask(t.id, colId, i).catch((err) => {
-          console.error('Failed to persist task reorder:', err)
-        })
-      }
+    // Add original column ID
+    if (dragStartColumnRef.current) {
+      affectedColIds.add(dragStartColumnRef.current)
     }
 
+    const tasksToUpdate: { id: string; columnId: string; order: number }[] = []
+    for (const colId of affectedColIds) {
+      const colTasks = storeTasks.filter((t) => t.columnId === colId).sort((a, b) => a.order - b.order)
+      colTasks.forEach((t, i) => {
+        tasksToUpdate.push({ id: t.id, columnId: colId, order: i })
+      })
+    }
+
+    window.electronAPI.log.info('[Board] handleDragEnd tasksToUpdate:', tasksToUpdate)
+
+    if (tasksToUpdate.length > 0) {
+      window.electronAPI.log.info('[Board] handleDragEnd calling reorderTasks')
+      window.electronAPI.reorderTasks(tasksToUpdate)
+        .then(() => {
+          window.electronAPI.log.info('[Board] handleDragEnd reorderTasks SUCCESS')
+        })
+        .catch((err) => {
+          window.electronAPI.log.error('[Board] handleDragEnd reorderTasks FAILED:', err)
+        })
+    }
+
+    dragStartColumnRef.current = null
     setActiveId(null)
     setActiveType(null)
   }

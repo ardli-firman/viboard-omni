@@ -62,6 +62,8 @@ const api = {
   deleteTask: (id: string): Promise<void> => ipcRenderer.invoke('task:delete', id),
   moveTask: (taskId: string, columnId: string, order: number): Promise<Task> =>
     ipcRenderer.invoke('task:move', taskId, columnId, order),
+  reorderTasks: (items: { id: string; columnId: string; order: number }[]): Promise<void> =>
+    ipcRenderer.invoke('task:reorder', items),
 
   // Tags operations
   getProjectTags: (projectPath?: string): Promise<ProjectTag[]> =>
