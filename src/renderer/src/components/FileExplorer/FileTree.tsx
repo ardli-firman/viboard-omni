@@ -21,13 +21,26 @@ function TreeNode({ item, depth }: { item: FileTreeItem; depth: number }): React
   const isModified = status?.includes('M')
   const isAdded = status?.includes('A') || status?.includes('?')
 
+  // For directories, propagate git status from descendants
+  let dirModified = false
+  let dirAdded = false
+  if (item.isDirectory && !status) {
+    const prefix = item.relativePath + '/'
+    for (const [k, v] of Object.entries(gitStatus)) {
+      if (k.startsWith(prefix)) {
+        if (v.includes('M')) dirModified = true
+        if (v.includes('A') || v.includes('?')) dirAdded = true
+      }
+    }
+  }
+
   const Icon = getFileIcon(item.name, item.extension, item.isDirectory, isExpanded)
   const iconColor = item.isDirectory ? 'text-sky-400' : getFileIconColor(item.extension)
   const textColor = isActive
     ? 'text-primary'
-    : isModified
+    : isModified || dirModified
       ? 'text-amber-600 dark:text-amber-400'
-      : isAdded
+      : isAdded || dirAdded
         ? 'text-emerald-600 dark:text-emerald-400'
         : 'text-muted-foreground/80'
 
@@ -76,6 +89,9 @@ function TreeNode({ item, depth }: { item: FileTreeItem; depth: number }): React
           <span className={`ml-auto text-[9px] font-extrabold px-1 rounded-sm ${isModified ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'}`}>
             {isModified ? 'M' : isAdded ? 'A' : ''}
           </span>
+        )}
+        {(dirModified || dirAdded) && (
+          <span className={`ml-auto h-1.5 w-1.5 rounded-full ${dirModified ? 'bg-amber-500/70' : 'bg-emerald-500/70'}`} />
         )}
         {isOpen && !item.isDirectory && !status && (
           <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary/60" />
