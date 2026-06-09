@@ -67,7 +67,7 @@ export function registerTaskHandlers(): void {
       const id = uuid()
       const now = Date.now()
       db.prepare(
-        `INSERT INTO tasks (id, title, description, column_id, "order", project_path, agent_type, agent_status, custom_agent_command, agent_config, tags, subtasks, created_at, updated_at)
+        `INSERT INTO tasks (id, title, description, column_id, "order", project_path, agent_type, agent_status, agent_session_id, custom_agent_command, agent_config, tags, subtasks, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         id,
@@ -78,6 +78,7 @@ export function registerTaskHandlers(): void {
         data.projectPath ?? '',
         data.agentType ?? 'oh-my-pi',
         data.agentStatus ?? 'idle',
+        data.agentSessionId ?? null,
         data.customAgentCommand ?? null,
         data.agentConfig ? JSON.stringify(data.agentConfig) : null,
         JSON.stringify(data.tags ?? []),
@@ -94,6 +95,7 @@ export function registerTaskHandlers(): void {
         projectPath: data.projectPath ?? '',
         agentType: (data.agentType ?? 'oh-my-pi') as AgentType,
         agentStatus: (data.agentStatus ?? 'idle') as AgentStatus,
+        agentSessionId: data.agentSessionId,
         customAgentCommand: data.customAgentCommand,
         agentConfig: data.agentConfig,
         tags: data.tags ?? [],
