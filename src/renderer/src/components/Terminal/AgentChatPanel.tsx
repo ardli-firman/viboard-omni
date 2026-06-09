@@ -5,8 +5,10 @@ import { TerminalManager } from './TerminalManager'
 import { useTerminalStore } from '../../stores/terminalStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { useSettingsStore } from '../../stores/settingsStore'
+import { useThemeStore } from '../../stores/themeStore'
 import { Button } from '../ui/button'
-import { X, Terminal as TerminalIcon, Minus, Maximize2, Minimize2, ChevronUp } from 'lucide-react'
+import { X, Terminal as TerminalIcon, Minus, Maximize2, Minimize2, ChevronUp, Play, Square, RotateCw } from 'lucide-react'
+
 
 interface AgentChatPanelProps {
   taskId: string
@@ -22,6 +24,7 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
   const { closePanel, panelHeight, setPanelHeight } = useTerminalStore()
   const { tasks } = useProjectStore()
   const { settings } = useSettingsStore()
+  const { theme } = useThemeStore()
   const status = useTerminalStore((s) => s.status[taskId]) ?? 'idle'
   const activity = useTerminalStore((s) => s.activity[taskId]) ?? 'waiting'
 
@@ -46,6 +49,45 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
   }
 
   const statusInfo = getStatusInfo()
+
+  const handleStartAgent = useCallback(() => {
+    const manager = TerminalManager.getInstance()
+    const term = manager.getTerminal(taskId)
+    if (!term) return
+
+    const currentTask = tasks.find((t) => t.id === taskId)
+    if (!currentTask) {
+      term.write('\x1b[31m[Terminal] Error: Task not found.\x1b[0m\r\n')
+      return
+    }
+
+    const agentType = currentTask.agentType ?? settings.defaultAgentType ?? 'oh-my-pi'
+    const globalAgentConfig = settings.agentConfigs[agentType]
+    const taskAgentConfig = currentTask.agentConfig
+
+    // Show spawning message
+    term.write('\r\n\x1b[38;2;143;194;155m[Terminal] Spawning agent...\x1b[0m\r\n')
+
+    window.electronAPI.spawnAgentPty(
+      taskId,
+      currentTask.projectPath,
+      term.cols || 80,
+      term.rows || 30,
+      agentType,
+      globalAgentConfig,
+      taskAgentConfig,
+    ).catch((err) => {
+      term.write(`\x1b[31m[Terminal] Error spawning agent: ${err.message || err}\x1b[0m\r\n`)
+    })
+  }, [taskId, tasks, settings])
+
+  const handleStopAgent = useCallback(async () => {
+    try {
+      await window.electronAPI.killAgentPty(taskId)
+    } catch (err) {
+      console.error('Failed to stop agent:', err)
+    }
+  }, [taskId])
 
   const [sizeMode, setSizeMode] = useState<'normal' | 'minimized' | 'maximized'>('normal')
   const [isResizing, setIsResizing] = useState(false)
@@ -114,8 +156,9 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
     const term = manager.attach(taskId, terminalContainerRef.current, onData)
     xtermRef.current = term
 
-    // Only spawn a new PTY if this is a fresh session (no running process)
-    if (isNewSession) {
+    // Automatically spawn a new PTY if this is a fresh session AND the status is 'idle'
+    const currentStatus = useTerminalStore.getState().status[taskId] ?? 'idle'
+    if (isNewSession && currentStatus === 'idle') {
       // Show init message
       term.write('\x1b[38;2;143;194;155m[Terminal] Initializing session...\x1b[0m\r\n')
 
@@ -128,28 +171,27 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
           // ignore fit errors if container isn't ready
         }
 
-        const currentStatus = useTerminalStore.getState().status[taskId]
         const currentTask = useProjectStore.getState().tasks.find((t) => t.id === taskId)
 
-        if (currentStatus !== 'running') {
-          if (currentTask) {
-            const agentType = currentTask.agentType ?? settings.defaultAgentType ?? 'oh-my-pi'
-            const globalAgentConfig = settings.agentConfigs[agentType]
-            const taskAgentConfig = currentTask.agentConfig
+        if (currentTask) {
+          const agentType = currentTask.agentType ?? settings.defaultAgentType ?? 'oh-my-pi'
+          const globalAgentConfig = settings.agentConfigs[agentType]
+          const taskAgentConfig = currentTask.agentConfig
 
-            term.write('\x1b[38;2;143;194;155m[Terminal] Spawning agent...\x1b[0m\r\n')
-            window.electronAPI.spawnAgentPty(
-              taskId,
-              currentTask.projectPath,
-              term.cols || 80,
-              term.rows || 30,
-              agentType,
-              globalAgentConfig,
-              taskAgentConfig,
-            )
-          } else {
-            term.write('\x1b[31m[Terminal] Error: Task not found.\x1b[0m\r\n')
-          }
+          term.write('\x1b[38;2;143;194;155m[Terminal] Spawning agent...\x1b[0m\r\n')
+          window.electronAPI.spawnAgentPty(
+            taskId,
+            currentTask.projectPath,
+            term.cols || 80,
+            term.rows || 30,
+            agentType,
+            globalAgentConfig,
+            taskAgentConfig,
+          ).catch((err) => {
+            term.write(`\x1b[31m[Terminal] Error spawning agent: ${err.message || err}\x1b[0m\r\n`)
+          })
+        } else {
+          term.write('\x1b[31m[Terminal] Error: Task not found.\x1b[0m\r\n')
         }
       }, 100)
     } else {
@@ -187,6 +229,11 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
     }
   }, []) // Mount once — routes ALL taskIds through TerminalManager
 
+  // ── Dynamic Theme Synchronization ────────────────────────────────
+  useEffect(() => {
+    TerminalManager.getInstance().updateTheme(taskId, theme)
+  }, [taskId, theme])
+
   // ── Resize Observer ──────────────────────────────────────────────
   // Re-fits xterm when the panel container resizes.
 
@@ -197,7 +244,9 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
     try {
       fitAddon?.fit()
       if (term) {
-        window.electronAPI.resizeAgentPty(taskId, term.cols, term.rows)
+        window.electronAPI.resizeAgentPty(taskId, term.cols, term.rows).catch((err) => {
+          console.warn(`[AgentChatPanel] Failed to resize PTY via IPC:`, err)
+        })
       }
     } catch {
       // ignore
@@ -260,7 +309,7 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
 
   return (
     <div 
-      className={`relative shrink-0 flex flex-col border-t border-border/30 bg-[#111613] text-[#e6ebe7] transition-all duration-300 ${
+      className={`relative shrink-0 flex flex-col border-t border-border/30 bg-background text-foreground transition-all duration-300 ${
         isResizing ? 'select-none transition-none' : ''
       }`}
       style={{ height: getPanelHeightStyle() }}
@@ -278,14 +327,14 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
       {/* Header bar */}
       <div 
         className={`flex shrink-0 items-center justify-between border-b border-border/25 px-4 py-2 shadow-xs bg-card select-none ${
-          sizeMode === 'minimized' ? 'cursor-pointer hover:bg-muted/10' : 'cursor-default'
+          sizeMode === 'minimized' ? 'cursor-pointer hover:bg-primary/10' : 'cursor-default'
         }`}
         onDoubleClick={handleHeaderDoubleClick}
         onClick={handleHeaderClick}
       >
         <div className="flex min-w-0 items-center gap-2">
           <TerminalIcon className="h-4 w-4 shrink-0 text-primary animate-pulse" />
-          <span className="text-xs font-extrabold uppercase tracking-wider text-card-foreground">Agent Terminal</span>
+          <span className="text-xs font-extrabold uppercase tracking-wider text-primary">Agent Terminal</span>
           {task && <span className="truncate text-xs text-muted-foreground font-semibold">· {task.title}</span>}
           <span className="ml-3 flex items-center gap-1.5 rounded-full border border-border/40 bg-background/50 px-2 py-0.5 text-[10px] font-bold text-muted-foreground uppercase shadow-2xs">
             <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dot}`} />
@@ -297,7 +346,38 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          {/* Action Button: Run / Restart / Stop */}
+          {sizeMode !== 'minimized' && (
+            status === 'running' ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 border-red-500/30 hover:bg-red-500/10 text-red-500 text-[10px] font-extrabold uppercase tracking-wider px-2.5 rounded-lg active:scale-95 transition-all shadow-xs"
+                onClick={handleStopAgent}
+                title="Stop current agent session"
+              >
+                <Square className="h-3 w-3 fill-current" />
+                <span>Stop Agent</span>
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-extrabold uppercase tracking-wider px-2.5 rounded-lg active:scale-95 transition-all shadow-xs"
+                onClick={handleStartAgent}
+                title={status === 'idle' ? 'Run agent' : 'Restart agent session'}
+              >
+                {status === 'idle' ? (
+                  <Play className="h-3 w-3 fill-current" />
+                ) : (
+                  <RotateCw className="h-3 w-3" />
+                )}
+                <span>{status === 'idle' ? 'Run Agent' : 'Restart'}</span>
+              </Button>
+            )
+          )}
+
           {/* Minimize / Restore button */}
           {sizeMode === 'minimized' ? (
             <Button

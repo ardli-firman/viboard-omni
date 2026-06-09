@@ -19,9 +19,7 @@ interface TerminalSession {
   _rafPending: boolean
 }
 
-// ── xterm Theme (matches AgentChatPanel matcha theme) ────────────────
-
-const XTERM_THEME = {
+export const XTERM_DARK_THEME = {
   background: 'transparent',
   foreground: '#e6ebe7',
   cursor: '#8fc29b',
@@ -34,6 +32,21 @@ const XTERM_THEME = {
   cyan: '#56b6c2',
   white: '#abb2bf',
 }
+
+export const XTERM_LIGHT_THEME = {
+  background: 'transparent',
+  foreground: '#141c18',
+  cursor: '#141c18',
+  black: '#abb2bf',
+  red: '#e06c75',
+  green: '#3b6e4c',
+  yellow: '#b58900',
+  blue: '#268bd2',
+  magenta: '#d33682',
+  cyan: '#2aa198',
+  white: '#141c18',
+}
+
 
 // ── TerminalManager Singleton ────────────────────────────────────────
 //
@@ -88,6 +101,14 @@ export class TerminalManager {
     container.style.width = '100%'
     container.style.height = '100%'
 
+    let currentTheme: 'light' | 'dark' = 'dark'
+    try {
+      const { useThemeStore } = require('../../stores/themeStore')
+      currentTheme = useThemeStore.getState().theme
+    } catch {
+      // ignore
+    }
+
     const term = new Terminal({
       cursorBlink: true,
       fontFamily:
@@ -96,7 +117,7 @@ export class TerminalManager {
       scrollback: this.SCROLLBACK,
       fastScrollSensitivity: 5,
       smoothScrollDuration: 0,
-      theme: XTERM_THEME,
+      theme: currentTheme === 'dark' ? XTERM_DARK_THEME : XTERM_LIGHT_THEME,
     })
 
     const fitAddon = new FitAddon()
@@ -290,6 +311,15 @@ export class TerminalManager {
    */
   getFitAddon(taskId: string): FitAddon | null {
     return this.sessions.get(taskId)?.fitAddon ?? null
+  }
+
+  /**
+   * Dynamically update the terminal theme for a given session.
+   */
+  updateTheme(taskId: string, theme: 'light' | 'dark'): void {
+    const session = this.sessions.get(taskId)
+    if (!session) return
+    session.terminal.options.theme = theme === 'dark' ? XTERM_DARK_THEME : XTERM_LIGHT_THEME
   }
 
   /**

@@ -377,14 +377,22 @@ export function registerTerminalHandlers(): void {
   ipcMain.handle('agent:pty:data', (_event: unknown, input: { taskId: string; data: string }): void => {
     const run = runs.get(input.taskId)
     if (run && run.childProcess) {
-      run.childProcess.write(input.data)
+      try {
+        run.childProcess.write(input.data)
+      } catch (err) {
+        console.warn(`[agent:pty:data] failed to write to PTY:`, err)
+      }
     }
   })
 
   ipcMain.handle('agent:pty:resize', (_event: unknown, input: { taskId: string; cols: number; rows: number }): void => {
     const run = runs.get(input.taskId)
     if (run && run.childProcess) {
-      run.childProcess.resize(input.cols, input.rows)
+      try {
+        run.childProcess.resize(input.cols, input.rows)
+      } catch (err) {
+        console.warn(`[agent:pty:resize] failed to resize PTY:`, err)
+      }
     }
   })
 
