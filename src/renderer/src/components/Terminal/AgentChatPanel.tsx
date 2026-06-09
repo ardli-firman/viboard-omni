@@ -284,7 +284,7 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
   }, [sizeMode, handleResize])
 
   const getPanelHeightStyle = (): string | number => {
-    if (sizeMode === 'minimized') return '38px'
+    if (sizeMode === 'minimized') return '40px'
     if (sizeMode === 'maximized') return '80vh'
     return panelHeight
   }
@@ -326,8 +326,10 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
 
       {/* Header bar */}
       <div 
-        className={`flex shrink-0 items-center justify-between border-b border-border/25 px-4 py-2 shadow-xs bg-card select-none ${
-          sizeMode === 'minimized' ? 'cursor-pointer hover:bg-primary/10' : 'cursor-default'
+        className={`flex shrink-0 items-center justify-between border-b border-border/25 px-4 select-none bg-card transition-all duration-300 ${
+          sizeMode === 'minimized' 
+            ? 'h-[40px] cursor-pointer hover:bg-primary/10' 
+            : 'h-[46px] cursor-default'
         }`}
         onDoubleClick={handleHeaderDoubleClick}
         onClick={handleHeaderClick}
