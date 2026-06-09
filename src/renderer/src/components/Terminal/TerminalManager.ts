@@ -15,6 +15,8 @@ interface TerminalSession {
   lastAccessedAt: number
   /** Disposable for the onData listener (user typing → PTY). */
   onDataDisposable: { dispose: () => void } | null
+  /** Whether a requestAnimationFrame write is pending. */
+  _rafPending: boolean
 }
 
 // ── xterm Theme (matches AgentChatPanel matcha theme) ────────────────
@@ -52,7 +54,7 @@ export class TerminalManager {
   private readonly MAX_SESSIONS = 3
   /** Max buffered output for a detached (background) session. */
   private readonly MAX_DETACHED_BUFFER = 100 * 1024 // 100KB
-  private readonly SCROLLBACK = 5000
+  private readonly SCROLLBACK = 3000
 
   // ── Singleton ────────────────────────────────────────────────────
 
@@ -162,6 +164,7 @@ export class TerminalManager {
       outputBuffer: '',
       lastAccessedAt: Date.now(),
       onDataDisposable: null,
+      _rafPending: false,
     }
 
     this.sessions.set(taskId, session)
@@ -236,13 +239,29 @@ export class TerminalManager {
   /**
    * Write data to a terminal. If the session is detached, the data is
    * buffered in memory (capped at MAX_DETACHED_BUFFER).
+   *
+   * For attached sessions, writes are coalesced via requestAnimationFrame
+   * so xterm only renders once per browser frame regardless of how many
+   * IPC messages arrive within that frame.
    */
   writeToTerminal(taskId: string, data: string): void {
     const session = this.sessions.get(taskId)
     if (!session) return
 
     if (session.isAttached) {
-      session.terminal.write(data)
+      // Accumulate into the pending buffer and schedule a single RAF write
+      session.outputBuffer += data
+      if (!session._rafPending) {
+        session._rafPending = true
+        requestAnimationFrame(() => {
+          const s = this.sessions.get(taskId)
+          if (s && s.isAttached && s.outputBuffer.length > 0) {
+            s.terminal.write(s.outputBuffer)
+            s.outputBuffer = ''
+          }
+          if (s) s._rafPending = false
+        })
+      }
     } else {
       // Buffer output for when the user switches back
       session.outputBuffer += data

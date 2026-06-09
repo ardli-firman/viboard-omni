@@ -204,12 +204,26 @@ export function AgentChatPanel({ taskId }: AgentChatPanelProps): React.ReactElem
     }
   }, [taskId])
 
+  // Throttled ResizeObserver: fires at most once per 100ms to prevent
+  // expensive xterm fit() + IPC resize calls on every pixel during drag.
   useEffect(() => {
     if (!terminalContainerRef.current) return
 
-    const observer = new ResizeObserver(handleResize)
+    let throttleTimer: ReturnType<typeof setTimeout> | null = null
+    const throttledResize = (): void => {
+      if (throttleTimer) return
+      throttleTimer = setTimeout(() => {
+        throttleTimer = null
+        handleResize()
+      }, 100)
+    }
+
+    const observer = new ResizeObserver(throttledResize)
     observer.observe(terminalContainerRef.current)
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      if (throttleTimer) clearTimeout(throttleTimer)
+    }
   }, [taskId, handleResize])
 
   // Trigger terminal refit after transition animations complete

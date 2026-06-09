@@ -22,11 +22,11 @@ const runs = new Map<string, PtyRun>()
 
 // ── Output Batching ──────────────────────────────────────────────────
 // Instead of firing an IPC message per PTY data chunk (thousands/sec),
-// we accumulate output into a buffer and flush every 16ms (~60fps).
+// we accumulate output into a buffer and flush every 32ms (~30fps).
 // This reduces IPC serialization overhead by ~100x.
 
-const OUTPUT_FLUSH_INTERVAL = 16 // ms
-const OUTPUT_BUFFER_MAX = 256 * 1024 // 256KB max buffer per task
+const OUTPUT_FLUSH_INTERVAL = 32 // ms – 30fps is plenty for terminal text
+const OUTPUT_BUFFER_MAX = 128 * 1024 // 128KB max buffer per task
 const outputBuffers = new Map<string, string>()
 let flushTimer: ReturnType<typeof setInterval> | null = null
 
@@ -65,9 +65,19 @@ function flushOutput(taskId: string): void {
 
 // ── Activity Detection ───────────────────────────────────────────────
 // Delegated to the active driver for each run.
+// Throttled to avoid running expensive regex on every spinner frame.
 
 /** How many ms of silence before we consider the agent "waiting" at prompt */
 const IDLE_THRESHOLD_MS = 3000
+/** Minimum ms between activity detection runs (skip regex in between) */
+const ACTIVITY_THROTTLE_MS = 150
+/** Minimum ms between idle-timer resets to avoid timer churn */
+const IDLE_RESET_THROTTLE_MS = 500
+
+/** Per-task timestamp of last activity detection */
+const lastDetectAt = new Map<string, number>()
+/** Per-task timestamp of last idle-timer reset */
+const lastIdleResetAt = new Map<string, number>()
 
 function updateActivity(taskId: string, activity: AgentActivity): void {
   const run = runs.get(taskId)
@@ -77,15 +87,33 @@ function updateActivity(taskId: string, activity: AgentActivity): void {
   broadcast('agent:activity', { taskId, activity })
 }
 
+/**
+ * Returns true if activity detection should run for this chunk.
+ * Skips when called more frequently than ACTIVITY_THROTTLE_MS.
+ */
+function shouldDetectActivity(taskId: string): boolean {
+  const now = Date.now()
+  const last = lastDetectAt.get(taskId) ?? 0
+  if (now - last < ACTIVITY_THROTTLE_MS) return false
+  lastDetectAt.set(taskId, now)
+  return true
+}
+
 function resetIdleTimer(taskId: string): void {
   const run = runs.get(taskId)
   if (!run) return
 
+  const now = Date.now()
+  run.lastOutputAt = now
+
+  // Throttle timer resets: only clear+set if enough time has passed
+  const lastReset = lastIdleResetAt.get(taskId) ?? 0
+  if (now - lastReset < IDLE_RESET_THROTTLE_MS) return
+  lastIdleResetAt.set(taskId, now)
+
   if (run.idleTimer) {
     clearTimeout(run.idleTimer)
   }
-
-  run.lastOutputAt = Date.now()
 
   run.idleTimer = setTimeout(() => {
     const currentRun = runs.get(taskId)
@@ -308,12 +336,14 @@ export function registerTerminalHandlers(): void {
         childProcess.onData((data) => {
           appendOutput(taskId, data)
 
-          // Delegate activity detection to the driver
-          const currentRun = runs.get(taskId)
-          if (currentRun) {
-            const detected = driver.detectActivity(data)
-            if (detected) {
-              updateActivity(taskId, detected)
+          // Delegate activity detection to the driver (throttled)
+          if (shouldDetectActivity(taskId)) {
+            const currentRun = runs.get(taskId)
+            if (currentRun) {
+              const detected = driver.detectActivity(data)
+              if (detected) {
+                updateActivity(taskId, detected)
+              }
             }
           }
 
@@ -328,6 +358,9 @@ export function registerTerminalHandlers(): void {
             const finalStatus: AgentStatus = e.exitCode === 0 ? 'completed' : 'error'
             sendAgentStatus(taskId, finalStatus)
             runs.delete(taskId)
+            // Cleanup throttle maps
+            lastDetectAt.delete(taskId)
+            lastIdleResetAt.delete(taskId)
           } else {
             flushOutput(taskId)
           }
