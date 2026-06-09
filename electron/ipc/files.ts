@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { readdir, stat } from 'node:fs/promises'
 import { join, relative, basename, extname } from 'node:path'
 
 export interface FileEntry {
@@ -82,18 +83,18 @@ function shouldIgnore(name: string): boolean {
   return ignored.has(name)
 }
 
-function buildTree(basePath: string, depth: number = 0): FileTreeItem[] {
+async function buildTree(basePath: string, depth: number = 0): Promise<FileTreeItem[]> {
   if (depth > 20) return []
 
   try {
-    const entries = readdirSync(basePath)
+    const entries = await readdir(basePath)
     const items: FileTreeItem[] = []
 
     for (const name of entries) {
       if (shouldIgnore(name)) continue
       const fullPath = join(basePath, name)
       try {
-        const stats = statSync(fullPath)
+        const stats = await stat(fullPath)
         const isDir = stats.isDirectory()
         const ext = isDir ? '' : extname(name).toLowerCase()
         const entry: FileTreeItem = {
@@ -106,7 +107,7 @@ function buildTree(basePath: string, depth: number = 0): FileTreeItem[] {
         }
 
         if (isDir) {
-          entry.children = buildTree(fullPath, depth + 1)
+          entry.children = await buildTree(fullPath, depth + 1)
         }
 
         items.push(entry)
@@ -199,8 +200,8 @@ export function registerFileHandlers(): void {
     }
   })
 
-  ipcMain.handle('file:getTree', (_event: unknown, dirPath: string): FileTreeItem[] => {
-    const tree = buildTree(dirPath)
+  ipcMain.handle('file:getTree', async (_event: unknown, dirPath: string): Promise<FileTreeItem[]> => {
+    const tree = await buildTree(dirPath)
     computeRelativePath(tree, dirPath)
     return tree
   })

@@ -1,6 +1,16 @@
-import { Plus, FolderOpen, Trash2, Folder, Terminal, Sliders, Cpu } from 'lucide-react'
+import { useState } from 'react'
+import { Plus, FolderOpen, Trash2, Folder, Terminal, Sliders, Cpu, Loader2 } from 'lucide-react'
 import { useProjectStore } from '../../stores/projectStore'
 import type { RegisteredProject } from '@shared/types'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '../ui/dialog'
+import { Button } from '../ui/button'
 
 function formatDate(ts: number): string {
   const ago = Date.now() - ts
@@ -17,18 +27,30 @@ function ProjectRow({
   project,
   onOpen,
   onRemove,
+  isLoading,
+  disabled,
 }: {
   project: RegisteredProject
   onOpen: () => void
   onRemove: () => void
+  isLoading: boolean
+  disabled: boolean
 }): React.ReactElement {
   return (
     <div
-      onClick={onOpen}
-      className="group flex w-full items-center gap-4.5 rounded-2xl border border-border/25 bg-card/30 px-5 py-4 text-left cursor-pointer transition-all duration-300 hover:bg-card/60 hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5"
+      onClick={disabled ? undefined : onOpen}
+      className={`group flex w-full items-center gap-4.5 rounded-2xl border border-border/25 bg-card/30 px-5 py-4 text-left transition-all duration-300 ${
+        disabled
+          ? 'opacity-50 cursor-not-allowed'
+          : 'cursor-pointer hover:bg-card/60 hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5'
+      }`}
     >
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 transition-transform group-hover:scale-105">
-        <Folder className="h-5 w-5" />
+        {isLoading ? (
+          <Loader2 className="h-5 w-5 animate-spin" />
+        ) : (
+          <Folder className="h-5 w-5" />
+        )}
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="truncate text-sm font-bold text-foreground group-hover:text-primary transition-colors">{project.name}</span>
@@ -45,7 +67,8 @@ function ProjectRow({
             e.stopPropagation()
             onRemove()
           }}
-          className="rounded-lg p-1.5 text-muted-foreground/50 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+          disabled={disabled}
+          className="rounded-lg p-1.5 text-muted-foreground/50 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100 disabled:pointer-events-none"
           title="Remove project"
         >
           <Trash2 className="h-4 w-4" />
@@ -56,7 +79,20 @@ function ProjectRow({
 }
 
 export function ProjectPicker(): React.ReactElement {
-  const { projects, addProject, removeProject, openProject, loading } = useProjectStore()
+  const { projects, addProject, removeProject, openProject, currentProject, loading } = useProjectStore()
+  const [projectToDelete, setProjectToDelete] = useState<RegisteredProject | null>(null)
+  const [switchingTo, setSwitchingTo] = useState<string | null>(null)
+
+  const handleOpenProject = async (path: string): Promise<void> => {
+    setSwitchingTo(path)
+    // Yield to the event loop so React can render and paint the spinner instantly
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    try {
+      await openProject(path)
+    } finally {
+      setSwitchingTo(null)
+    }
+  }
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center p-6 sm:p-12 bg-transparent overflow-y-auto">
@@ -110,14 +146,21 @@ export function ProjectPicker(): React.ReactElement {
                 Recent Workspaces
               </h3>
               <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
-                {projects.map((p) => (
-                  <ProjectRow
-                    key={p.path}
-                    project={p}
-                    onOpen={() => openProject(p.path)}
-                    onRemove={() => removeProject(p.path)}
-                  />
-                ))}
+                {projects.map((p) => {
+                  const isCurrent = p.path === currentProject
+                  const isLoading = p.path === switchingTo || (isCurrent && loading)
+                  const isAnyLoading = loading || !!switchingTo
+                  return (
+                    <ProjectRow
+                      key={p.path}
+                      project={p}
+                      onOpen={() => handleOpenProject(p.path)}
+                      onRemove={() => setProjectToDelete(p)}
+                      isLoading={isLoading}
+                      disabled={isAnyLoading}
+                    />
+                  )
+                })}
               </div>
             </div>
           ) : (
@@ -137,12 +180,56 @@ export function ProjectPicker(): React.ReactElement {
               disabled={loading} 
               className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-primary/20 bg-primary/10 hover:bg-primary/15 px-6 py-5 text-sm font-bold text-primary transition-all hover:scale-[1.01] hover:shadow-xs active:scale-99 disabled:pointer-events-none disabled:opacity-50"
             >
-              <Plus className="h-5 w-5" />
-              <span>{loading ? 'Opening System Picker...' : 'Register New Project Folder'}</span>
+              {loading ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>Loading Workspace...</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="h-5 w-5" />
+                  <span>Register New Project Folder</span>
+                </>
+              )}
             </button>
           </div>
         </div>
       </div>
+
+      {/* Confirmation Dialog for Project Deletion */}
+      <Dialog open={!!projectToDelete} onOpenChange={(open) => !open && setProjectToDelete(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-bold">Remove Workspace</DialogTitle>
+            <DialogDescription className="pt-2 text-xs leading-normal">
+              Are you sure you want to remove <span className="font-bold text-foreground">"{projectToDelete?.name}"</span> from your workspaces?
+              <br />
+              This will not delete the project files on your disk, it will only remove it from Viboard's workspace list.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setProjectToDelete(null)}
+              className="rounded-xl text-xs font-bold"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                if (projectToDelete) {
+                  await removeProject(projectToDelete.path)
+                  setProjectToDelete(null)
+                }
+              }}
+              className="rounded-xl text-xs font-bold"
+            >
+              Remove Workspace
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

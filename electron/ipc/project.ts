@@ -94,7 +94,18 @@ export function registerProjectHandlers(): void {
   console.log('[project] Registering IPC handlers')
 
   ipcMain.handle('project:list', (): RegisteredProject[] => {
-    return readStore().sort((a, b) => b.lastOpenedAt - a.lastOpenedAt)
+    return readStore()
+  })
+
+  ipcMain.handle('project:reorder', (_event: unknown, orderedPaths: string[]): boolean => {
+    const projects = readStore()
+    const ordered = orderedPaths
+      .map((pPath) => projects.find((p) => p.path === pPath))
+      .filter((p): p is RegisteredProject => !!p)
+    const missing = projects.filter((p) => !orderedPaths.includes(p.path))
+    const next = [...ordered, ...missing]
+    writeStore(next)
+    return true
   })
 
   ipcMain.handle('project:add', async (): Promise<RegisteredProject | null> => {

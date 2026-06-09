@@ -13,6 +13,7 @@ interface ProjectState {
   loadProjects: () => Promise<void>
   addProject: () => Promise<string | null>
   removeProject: (path: string) => Promise<void>
+  reorderProjects: (orderedPaths: string[]) => Promise<void>
   openProject: (path: string) => Promise<void>
   closeProject: () => void
   loadData: (projectPath: string) => Promise<void>
@@ -77,6 +78,22 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         tags: close ? [] : s.tags,
       }
     })
+  },
+
+  reorderProjects: async (orderedPaths) => {
+    set((s) => {
+      const ordered = orderedPaths
+        .map((pPath) => s.projects.find((p) => p.path === pPath))
+        .filter((p): p is RegisteredProject => !!p)
+      const missing = s.projects.filter((p) => !orderedPaths.includes(p.path))
+      return { projects: [...ordered, ...missing] }
+    })
+    try {
+      await window.electronAPI.reorderProjects(orderedPaths)
+    } catch (err) {
+      console.error('Failed to reorder projects:', err)
+      await get().loadProjects()
+    }
   },
 
   openProject: async (path) => {

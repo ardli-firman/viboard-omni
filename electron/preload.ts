@@ -24,6 +24,8 @@ const api = {
   addProject: (): Promise<RegisteredProject | null> => ipcRenderer.invoke('project:add'),
   removeProject: (path: string): Promise<boolean> => ipcRenderer.invoke('project:remove', path),
   touchProject: (path: string): Promise<void> => ipcRenderer.invoke('project:touch', path),
+  reorderProjects: (orderedPaths: string[]): Promise<boolean> =>
+    ipcRenderer.invoke('project:reorder', orderedPaths),
 
   // Folder picker (not auto-registered)
   selectProjectFolder: (): Promise<string | null> => ipcRenderer.invoke('project:selectFolder'),
