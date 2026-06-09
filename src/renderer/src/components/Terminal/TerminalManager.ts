@@ -20,7 +20,7 @@ interface TerminalSession {
 }
 
 export const XTERM_DARK_THEME = {
-  background: 'transparent',
+  background: '#101712',
   foreground: '#e6ebe7',
   cursor: '#8fc29b',
   black: '#111613',
@@ -34,7 +34,7 @@ export const XTERM_DARK_THEME = {
 }
 
 export const XTERM_LIGHT_THEME = {
-  background: 'transparent',
+  background: '#f7f8f4',
   foreground: '#141c18',
   cursor: '#141c18',
   black: '#abb2bf',
