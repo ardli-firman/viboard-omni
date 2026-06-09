@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { Task, AgentType, AgentCliConfig } from '@shared/types'
+import type { Task, AgentType, AgentCliConfig, AgentStatus } from '@shared/types'
+import { format } from 'date-fns'
+import type { DateRange } from 'react-day-picker'
 import { KanbanColumn } from './Column'
 import { TaskModal } from '../Modal/TaskModal'
 import { ColumnModal } from '../Modal/ColumnModal'
@@ -27,13 +29,58 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { KanbanCard } from './Card'
+import { cn } from '@/lib/utils'
+import { AgentIcon } from '../AgentIcon'
 import { Button } from '../ui/button'
-import { Minus, Plus, Maximize2, RotateCcw, Tag } from 'lucide-react'
+import { Input } from '../ui/input'
+import { Popover, PopoverTrigger, PopoverContent } from '../ui/popover'
+import { Calendar } from '../ui/calendar'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '../ui/dropdown-menu'
+import {
+  Minus,
+  Plus,
+  Maximize2,
+  RotateCcw,
+  Tag,
+  Search,
+  X,
+  XCircle,
+  Bot,
+  Activity,
+  ChevronDown,
+  Calendar as CalendarIcon,
+} from 'lucide-react'
+
+const AGENT_DISPLAY: Record<AgentType, { label: string; icon: string }> = {
+  'oh-my-pi': { label: 'Oh My Pi', icon: '🤖' },
+  'gemini-cli': { label: 'Gemini', icon: '✨' },
+  'pi-agent': { label: 'Pi Agent', icon: '🥧' },
+  'hermes': { label: 'Hermes', icon: '🪄' },
+  'opencode': { label: 'OpenCode', icon: '🖥️' },
+  'claude': { label: 'Claude', icon: '🧠' },
+  'custom': { label: 'Custom', icon: '⚙️' },
+}
+
+const DATE_FILTER_LABELS = {
+  all: 'All Time',
+  today: 'Created Today',
+  yesterday: 'Created Yesterday',
+  week: 'Created This Week',
+  month: 'Created This Month',
+  custom: 'Custom Range...',
+}
 
 export function Board(): React.ReactElement {
   const {
     columns,
     tasks,
+    tags,
     currentProject,
     addColumn,
     addTask,
@@ -43,7 +90,10 @@ export function Board(): React.ReactElement {
     reorderColumns,
     updateColumn,
   } = useProjectStore()
-  const { openPanel } = useTerminalStore()
+
+  const openPanel = useTerminalStore((s) => s.openPanel)
+  const terminalStatuses = useTerminalStore((s) => s.status)
+
   const [activeId, setActiveId] = useState<string | null>(null)
   const [activeType, setActiveType] = useState<'task' | 'column' | null>(null)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
@@ -51,6 +101,17 @@ export function Board(): React.ReactElement {
   const [tagManagerOpen, setTagManagerOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [taskColumnId, setTaskColumnId] = useState<string>('')
+
+  // Filter States
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedTag, setSelectedTag] = useState<string | null>(null)
+  const [selectedAgent, setSelectedAgent] = useState<AgentType | 'all'>('all')
+  const [selectedStatus, setSelectedStatus] = useState<AgentStatus | 'all'>('all')
+  const [selectedDateFilter, setSelectedDateFilter] = useState<'all' | 'today' | 'yesterday' | 'week' | 'month' | 'custom'>('all')
+  const [customStartDate, setCustomStartDate] = useState('')
+  const [customEndDate, setCustomEndDate] = useState('')
+  const [popoverOpen, setPopoverOpen] = useState(false)
+  const [tempRange, setTempRange] = useState<DateRange | undefined>(undefined)
 
   // Local order state — the source of truth for visual column order.
   // Synced from the store (and external mutations like addColumn/deleteColumn),
@@ -131,8 +192,157 @@ export function Board(): React.ReactElement {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
+  // Memoized Filtered Tasks
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      // 1. Search Query Filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase()
+        const matchesTitle = task.title.toLowerCase().includes(query)
+        const matchesDesc = task.description?.toLowerCase().includes(query) ?? false
+        if (!matchesTitle && !matchesDesc) return false
+      }
+
+      // 2. Tag Filter
+      if (selectedTag) {
+        if (!task.tags || !task.tags.includes(selectedTag)) return false
+      }
+
+      // 3. Agent Filter
+      if (selectedAgent !== 'all') {
+        if (task.agentType !== selectedAgent) return false
+      }
+
+      // 4. Status Filter
+      if (selectedStatus !== 'all') {
+        const realStatus = terminalStatuses[task.id] ?? task.agentStatus
+        if (realStatus !== selectedStatus) return false
+      }
+
+      // 5. Date Filter (Created Date)
+      if (selectedDateFilter !== 'all') {
+        const now = Date.now()
+        const taskTime = task.createdAt
+
+        if (selectedDateFilter === 'today') {
+          const today = new Date()
+          const taskDate = new Date(taskTime)
+          const isSameDay =
+            today.getDate() === taskDate.getDate() &&
+            today.getMonth() === taskDate.getMonth() &&
+            today.getFullYear() === taskDate.getFullYear()
+          if (!isSameDay) return false
+        } else if (selectedDateFilter === 'yesterday') {
+          const yesterday = new Date()
+          yesterday.setDate(yesterday.getDate() - 1)
+          const taskDate = new Date(taskTime)
+          const isYesterday =
+            yesterday.getDate() === taskDate.getDate() &&
+            yesterday.getMonth() === taskDate.getMonth() &&
+            yesterday.getFullYear() === taskDate.getFullYear()
+          if (!isYesterday) return false
+        } else if (selectedDateFilter === 'week') {
+          // Last 7 days
+          const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000
+          if (taskTime < sevenDaysAgo) return false
+        } else if (selectedDateFilter === 'month') {
+          // Last 30 days
+          const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000
+          if (taskTime < thirtyDaysAgo) return false
+        } else if (selectedDateFilter === 'custom') {
+          if (customStartDate) {
+            const startMs = new Date(customStartDate + 'T00:00:00').getTime()
+            if (taskTime < startMs) return false
+          }
+          if (customEndDate) {
+            const endMs = new Date(customEndDate + 'T23:59:59').getTime()
+            if (taskTime > endMs) return false
+          }
+        }
+      }
+
+      return true
+    })
+  }, [tasks, searchQuery, selectedTag, selectedAgent, selectedStatus, selectedDateFilter, customStartDate, customEndDate, terminalStatuses])
+
+  const hasFiltersActive =
+    searchQuery.trim() !== '' ||
+    selectedTag !== null ||
+    selectedAgent !== 'all' ||
+    selectedStatus !== 'all' ||
+    selectedDateFilter !== 'all' ||
+    customStartDate !== '' ||
+    customEndDate !== ''
+
+  const resetFilters = () => {
+    setSearchQuery('')
+    setSelectedTag(null)
+    setSelectedAgent('all')
+    setSelectedStatus('all')
+    setSelectedDateFilter('all')
+    setCustomStartDate('')
+    setCustomEndDate('')
+  }
+
+  const getDateFilterLabel = () => {
+    if (selectedDateFilter === 'custom') {
+      if (customStartDate && customEndDate) {
+        try {
+          const start = new Date(customStartDate + 'T00:00:00')
+          const end = new Date(customEndDate + 'T00:00:00')
+          return `${format(start, 'MMM d, yyyy')} - ${format(end, 'MMM d, yyyy')}`
+        } catch {
+          return `${customStartDate} - ${customEndDate}`
+        }
+      }
+      if (customStartDate) {
+        try {
+          const start = new Date(customStartDate + 'T00:00:00')
+          return `From ${format(start, 'MMM d, yyyy')}`
+        } catch {
+          return `From ${customStartDate}`
+        }
+      }
+      if (customEndDate) {
+        try {
+          const end = new Date(customEndDate + 'T00:00:00')
+          return `Until ${format(end, 'MMM d, yyyy')}`
+        } catch {
+          return `Until ${customEndDate}`
+        }
+      }
+      return 'Custom Range'
+    }
+    return DATE_FILTER_LABELS[selectedDateFilter]
+  }
+
+  const getPresetRange = (preset: 'all' | 'today' | 'yesterday' | 'week' | 'month'): DateRange | undefined => {
+    const now = new Date()
+    now.setHours(0, 0, 0, 0)
+    
+    if (preset === 'today') {
+      return { from: now, to: now }
+    }
+    if (preset === 'yesterday') {
+      const yesterday = new Date(now)
+      yesterday.setDate(yesterday.getDate() - 1)
+      return { from: yesterday, to: yesterday }
+    }
+    if (preset === 'week') {
+      const weekAgo = new Date(now)
+      weekAgo.setDate(weekAgo.getDate() - 7)
+      return { from: weekAgo, to: now }
+    }
+    if (preset === 'month') {
+      const monthAgo = new Date(now)
+      monthAgo.setDate(monthAgo.getDate() - 30)
+      return { from: monthAgo, to: now }
+    }
+    return undefined
+  }
+
   function getTasksByColumn(columnId: string): Task[] {
-    return tasks.filter((t) => t.columnId === columnId).sort((a, b) => a.order - b.order)
+    return filteredTasks.filter((t) => t.columnId === columnId).sort((a, b) => a.order - b.order)
   }
 
   function handleDragStart(event: DragStartEvent): void {
@@ -529,6 +739,243 @@ export function Board(): React.ReactElement {
             <Plus className="mr-1.5 h-4 w-4" />Add Column
           </Button>
         </div>
+      </div>
+      {/* Filter Bar */}
+      <div className="z-10 flex flex-wrap items-center gap-3 border-b border-border/15 bg-background/25 px-6 py-2.5 backdrop-blur-xl">
+        {/* Search Input */}
+        <div className="relative flex-1 min-w-[200px] max-w-[260px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60" />
+          <Input
+            placeholder="Search tasks..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 pr-8 h-8 rounded-xl bg-background/40 border-border/30 text-xs focus:ring-1 focus:ring-primary/40"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Tag Filter */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 rounded-xl border-border/30 bg-background/40 px-3 text-xs font-semibold hover:bg-muted"
+            >
+              <Tag className="mr-1.5 h-3.5 w-3.5 text-muted-foreground/80" />
+              <span>{selectedTag ? `Tag: ${tags.find((t) => t.id === selectedTag)?.name}` : 'All Tags'}</span>
+              <ChevronDown className="ml-1.5 h-3.5 w-3.5 text-muted-foreground/60" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-48 bg-popover border border-border shadow-md rounded-xl p-1 backdrop-blur-md">
+            <DropdownMenuItem
+              onClick={() => setSelectedTag(null)}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs text-foreground cursor-pointer rounded-lg hover:bg-muted"
+            >
+              All Tags
+            </DropdownMenuItem>
+            {tags.length > 0 && <DropdownMenuSeparator className="bg-border/40" />}
+            {tags.map((tag) => (
+              <DropdownMenuItem
+                key={tag.id}
+                onClick={() => setSelectedTag(tag.id)}
+                className="flex items-center gap-2 px-3 py-1.5 text-xs text-foreground cursor-pointer rounded-lg hover:bg-muted"
+              >
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: tag.color }} />
+                <span className="truncate">{tag.name}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Agent Filter */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 rounded-xl border-border/30 bg-background/40 px-3 text-xs font-semibold hover:bg-muted"
+            >
+              {selectedAgent === 'all' ? (
+                <Bot className="mr-1.5 h-3.5 w-3.5 text-muted-foreground/80" />
+              ) : (
+                <AgentIcon type={selectedAgent} className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+              )}
+              <span>{selectedAgent === 'all' ? 'All Agents' : `Agent: ${AGENT_DISPLAY[selectedAgent]?.label || selectedAgent}`}</span>
+              <ChevronDown className="ml-1.5 h-3.5 w-3.5 text-muted-foreground/60" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-48 bg-popover border border-border shadow-md rounded-xl p-1 backdrop-blur-md">
+            <DropdownMenuItem
+              onClick={() => setSelectedAgent('all')}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs text-foreground cursor-pointer rounded-lg hover:bg-muted"
+            >
+              All Agents
+            </DropdownMenuItem>
+            <DropdownMenuSeparator className="bg-border/40" />
+            {Object.entries(AGENT_DISPLAY).map(([type, display]) => (
+              <DropdownMenuItem
+                key={type}
+                onClick={() => setSelectedAgent(type as AgentType)}
+                className="flex items-center gap-2 px-3 py-1.5 text-xs text-foreground cursor-pointer rounded-lg hover:bg-muted"
+              >
+                <AgentIcon type={type as AgentType} className="h-4 w-4 shrink-0" />
+                <span>{display.label}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Status Filter */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 rounded-xl border-border/30 bg-background/40 px-3 text-xs font-semibold hover:bg-muted"
+            >
+              <Activity className="mr-1.5 h-3.5 w-3.5 text-muted-foreground/80" />
+              <span className="capitalize">{selectedStatus === 'all' ? 'All Statuses' : `Status: ${selectedStatus}`}</span>
+              <ChevronDown className="ml-1.5 h-3.5 w-3.5 text-muted-foreground/60" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-48 bg-popover border border-border shadow-md rounded-xl p-1 backdrop-blur-md">
+            <DropdownMenuItem
+              onClick={() => setSelectedStatus('all')}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs text-foreground cursor-pointer rounded-lg hover:bg-muted"
+            >
+              All Statuses
+            </DropdownMenuItem>
+            <DropdownMenuSeparator className="bg-border/40" />
+            {(['idle', 'running', 'completed', 'error'] as AgentStatus[]).map((status) => (
+              <DropdownMenuItem
+                key={status}
+                onClick={() => setSelectedStatus(status)}
+                className="flex items-center gap-2 px-3 py-1.5 text-xs text-foreground cursor-pointer rounded-lg hover:bg-muted capitalize"
+              >
+                <span className={`h-2 w-2 rounded-full ${
+                  status === 'completed' ? 'bg-emerald-500' :
+                  status === 'error' ? 'bg-destructive' :
+                  status === 'running' ? 'bg-amber-500' : 'bg-slate-400'
+                }`} />
+                <span>{status}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Date Filter */}
+        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-8 rounded-xl border-border/30 bg-background/40 px-3 text-xs font-semibold hover:bg-muted transition-all",
+                selectedDateFilter !== 'all' ? "border-primary/45 bg-primary/5 text-primary hover:bg-primary/10" : ""
+              )}
+            >
+              <CalendarIcon className="mr-1.5 h-3.5 w-3.5 opacity-80" />
+              <span>{getDateFilterLabel()}</span>
+              <ChevronDown className="ml-1.5 h-3.5 w-3.5 opacity-60" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-auto p-0 flex divide-x divide-border/20 bg-popover/98 border-border shadow-xl rounded-2xl backdrop-blur-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Left Column: Presets */}
+            <div className="flex flex-col gap-0.5 p-2.5 w-36 shrink-0 bg-muted/20">
+              <span className="px-2 py-1.5 text-[9px] font-bold text-muted-foreground/80 uppercase tracking-wider">Date Presets</span>
+              {Object.entries(DATE_FILTER_LABELS)
+                .filter(([preset]) => preset !== 'custom')
+                .map(([preset, label]) => (
+                  <button
+                    key={preset}
+                    onClick={() => {
+                      setSelectedDateFilter(preset as any)
+                      setCustomStartDate('')
+                      setCustomEndDate('')
+                      const range = getPresetRange(preset as any)
+                      setTempRange(range)
+                      setPopoverOpen(false)
+                    }}
+                    className={cn(
+                      "w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all hover:bg-muted active:scale-98 cursor-pointer",
+                      selectedDateFilter === preset ? "bg-primary/15 text-primary" : "text-foreground/70 hover:text-foreground"
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              <button
+                onClick={() => {
+                  setSelectedDateFilter('custom')
+                }}
+                className={cn(
+                  "w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all hover:bg-muted active:scale-98 cursor-pointer mt-1",
+                  selectedDateFilter === 'custom' ? "bg-primary/15 text-primary" : "text-foreground/70 hover:text-foreground"
+                )}
+              >
+                Custom Range
+              </button>
+              
+              {selectedDateFilter === 'custom' && (
+                <div className="flex flex-col gap-1 mt-auto border-t border-border/20 pt-2.5">
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="w-full h-8 rounded-lg text-[10px] font-bold shadow-sm"
+                    onClick={() => {
+                      if (tempRange) {
+                        setCustomStartDate(tempRange.from ? format(tempRange.from, 'yyyy-MM-dd') : '')
+                        setCustomEndDate(tempRange.to ? format(tempRange.to, 'yyyy-MM-dd') : '')
+                        setSelectedDateFilter('custom')
+                      } else {
+                        setCustomStartDate('')
+                        setCustomEndDate('')
+                        setSelectedDateFilter('all')
+                      }
+                      setPopoverOpen(false)
+                    }}
+                  >
+                    Apply Range
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Calendar */}
+            <div className="p-1 flex flex-col items-center">
+              <Calendar
+                mode="range"
+                selected={tempRange}
+                onSelect={(range) => {
+                  setTempRange(range)
+                  setSelectedDateFilter('custom')
+                }}
+                className="border-0 shadow-none bg-transparent"
+              />
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        {/* Reset Filter Button */}
+        {hasFiltersActive && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={resetFilters}
+            className="h-8 rounded-xl px-2.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-all duration-200"
+          >
+            <XCircle className="mr-1.5 h-3.5 w-3.5" />
+            Clear Filters
+          </Button>
+        )}
       </div>
       <div
         ref={containerRef}
