@@ -12,6 +12,7 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { Bot, ChevronDown, ChevronRight, Info, Plus, Trash2, RotateCcw } from 'lucide-react'
+import { AgentIcon } from '../AgentIcon'
 
 // ── Agent metadata ────────────────────────────────────────────────────────────
 
@@ -165,7 +166,7 @@ function AgentConfigPanel({ meta, config, onChange, onReset }: AgentConfigPanelP
         className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
         onClick={() => setExpanded((e) => !e)}
       >
-        <span className="text-lg leading-none">{meta.icon}</span>
+        <AgentIcon type={meta.type} className="w-6 h-6 shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-foreground">{meta.label}</p>
           <p className="text-[11px] text-muted-foreground truncate">{meta.description}</p>
@@ -368,7 +369,7 @@ export function AgentSettingsModal({ open, onOpenChange }: AgentSettingsModalPro
                       : 'border-border/40 bg-background hover:bg-muted/40 hover:border-border'
                   }`}
                 >
-                  <span className="text-base leading-none">{meta.icon}</span>
+                  <AgentIcon type={meta.type} className="w-5 h-5 shrink-0" />
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-foreground truncate">{meta.label}</p>
                   </div>

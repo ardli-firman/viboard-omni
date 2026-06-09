@@ -14,6 +14,7 @@ import {
 import { useTerminalStore } from '../../stores/terminalStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
+import { AgentIcon } from '../AgentIcon'
 
 const AGENT_DISPLAY: Record<AgentType, { label: string; icon: string }> = {
   'oh-my-pi': { label: 'Oh My Pi', icon: '🤖' },
@@ -206,7 +207,7 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
                 <div className="flex flex-wrap items-center gap-1.5">
                   {realStatus !== 'idle' && (
                     <span className="inline-flex items-center gap-1.5 rounded-md border border-border/30 bg-muted/40 px-1.5 py-0.5 text-[9px] font-bold uppercase text-muted-foreground/80 shadow-xs select-none">
-                      <span className="text-[10px] leading-none">{AGENT_DISPLAY[task.agentType]?.icon ?? '🤖'}</span>
+                      <AgentIcon type={task.agentType} className="w-3.5 h-3.5 shrink-0" />
                       <span>{AGENT_DISPLAY[task.agentType]?.label ?? task.agentType}</span>
                       <span className="relative flex h-1.5 w-1.5 shrink-0">
                         {realStatus === 'running' && (
@@ -403,7 +404,7 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
                   <span 
                     className="inline-flex items-center rounded-md border border-border/30 bg-muted/40 px-2 py-0.5 text-[9px] font-bold tracking-wide uppercase text-muted-foreground/80 shadow-xs cursor-help select-none"
                   >
-                    <span className="mr-1 text-[11px] leading-none">{AGENT_DISPLAY[task.agentType]?.icon ?? '🤖'}</span>
+                    <AgentIcon type={task.agentType} className="w-3.5 h-3.5 mr-1 shrink-0" />
                     <span className={realStatus !== 'idle' ? 'mr-1.5' : ''}>{AGENT_DISPLAY[task.agentType]?.label ?? task.agentType}</span>
                     
                     {/* Status Dot inside Agent badge */}
@@ -430,7 +431,7 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
                 <TooltipContent side="top" className="bg-popover text-popover-foreground border border-border shadow-md px-3 py-2 rounded-xl backdrop-blur-md">
                   <div className="flex flex-col gap-1 text-[11px] font-medium leading-none">
                     <div className="font-bold flex items-center gap-1.5">
-                      <span className="text-xs">{AGENT_DISPLAY[task.agentType]?.icon ?? '🤖'}</span>
+                      <AgentIcon type={task.agentType} className="w-4 h-4 shrink-0" />
                       <span>{AGENT_DISPLAY[task.agentType]?.label ?? task.agentType} Agent</span>
                     </div>
                     <div className="text-muted-foreground flex items-center gap-1.5 mt-0.5 capitalize">

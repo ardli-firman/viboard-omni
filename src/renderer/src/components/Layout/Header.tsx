@@ -5,6 +5,7 @@ import { useThemeStore } from '../../stores/themeStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { AgentSettingsModal } from '../Settings/AgentSettingsModal'
+import { AgentIcon } from '../AgentIcon'
 
 function basename(p: string): string {
   const parts = p.split(/[\\\/]/).filter(Boolean)
@@ -56,14 +57,7 @@ export function Header(): React.ReactElement {
             onClick={() => setSettingsOpen(true)}
             title="Agent CLI Settings"
           >
-            <span className="text-sm leading-none">
-              {settings.defaultAgentType === 'oh-my-pi' ? '🤖' :
-               settings.defaultAgentType === 'gemini-cli' ? '✨' :
-               settings.defaultAgentType === 'pi-agent' ? '🥧' :
-               settings.defaultAgentType === 'hermes' ? '🪄' :
-               settings.defaultAgentType === 'opencode' ? '🖥️' :
-               settings.defaultAgentType === 'claude' ? '🧠' : '⚙️'}
-            </span>
+            <AgentIcon type={settings.defaultAgentType} className="w-4 h-4 shrink-0" />
             <span>{settings.defaultAgentType}</span>
           </div>
 

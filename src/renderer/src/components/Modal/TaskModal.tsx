@@ -15,6 +15,7 @@ import { useProjectStore } from '../../stores/projectStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { ChevronDown, ChevronRight, Settings2, Check } from 'lucide-react'
 import { TagManagerModal } from './TagManagerModal'
+import { AgentIcon } from '../AgentIcon'
 
 // ── Agent type options ────────────────────────────────────────────────────────
 
@@ -248,7 +249,7 @@ export function TaskModal({ open, onOpenChange, task, onSave }: TaskModalProps):
                       : 'border-border/40 bg-background hover:bg-muted/40 hover:border-border'
                   }`}
                 >
-                  <span className="text-base leading-none">{opt.icon}</span>
+                  <AgentIcon type={opt.type} className="w-5 h-5 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className={`text-xs font-bold truncate ${agentType === opt.type ? 'text-primary' : 'text-foreground'}`}>
                       {opt.label}
