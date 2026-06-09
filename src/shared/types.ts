@@ -63,6 +63,12 @@ export interface Column {
   updatedAt: number
 }
 
+export interface Subtask {
+  id: string
+  title: string
+  completed: boolean
+}
+
 export interface Task {
   id: string
   title: string
@@ -77,6 +83,7 @@ export interface Task {
   agentConfig?: Partial<AgentCliConfig>
   customAgentCommand?: string
   tags: string[]
+  subtasks?: Subtask[]
   createdAt: number
   updatedAt: number
 }

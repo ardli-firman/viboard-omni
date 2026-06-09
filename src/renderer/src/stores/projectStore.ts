@@ -193,6 +193,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       agentStatus: 'idle' as AgentStatus,
       agentConfig: data.agentConfig,
       tags: data.tags,
+      subtasks: [],
     })
     set((s) => ({ tasks: [...s.tasks, task] }))
   },

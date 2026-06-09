@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import type { Task, AgentType, AgentStatus, AgentCliConfig } from '../../src/shared/types'
+import type { Task, AgentType, AgentStatus, AgentCliConfig, Subtask } from '../../src/shared/types'
 import { getDatabase } from '../database/init'
 import { v4 as uuid } from 'uuid'
 
@@ -16,6 +16,7 @@ interface TaskRow {
   custom_agent_command: string | null
   agent_config: string | null
   tags: string
+  subtasks: string
   created_at: number
   updated_at: number
 }
@@ -34,13 +35,14 @@ function rowToTask(row: TaskRow): Task {
     customAgentCommand: row.custom_agent_command ?? undefined,
     agentConfig: row.agent_config ? (JSON.parse(row.agent_config) as Partial<AgentCliConfig>) : undefined,
     tags: JSON.parse(row.tags) as string[],
+    subtasks: row.subtasks ? (JSON.parse(row.subtasks) as Subtask[]) : [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
 }
 
 const SELECT_COLS =
-  'id, title, description, column_id, "order", project_path, agent_type, agent_status, agent_session_id, custom_agent_command, agent_config, tags, created_at, updated_at'
+  'id, title, description, column_id, "order", project_path, agent_type, agent_status, agent_session_id, custom_agent_command, agent_config, tags, subtasks, created_at, updated_at'
 
 export function registerTaskHandlers(): void {
   ipcMain.handle('task:list', (_event: unknown, projectPath?: string): Task[] => {
@@ -65,8 +67,8 @@ export function registerTaskHandlers(): void {
       const id = uuid()
       const now = Date.now()
       db.prepare(
-        `INSERT INTO tasks (id, title, description, column_id, "order", project_path, agent_type, agent_status, custom_agent_command, agent_config, tags, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO tasks (id, title, description, column_id, "order", project_path, agent_type, agent_status, custom_agent_command, agent_config, tags, subtasks, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         id,
         data.title,
@@ -79,6 +81,7 @@ export function registerTaskHandlers(): void {
         data.customAgentCommand ?? null,
         data.agentConfig ? JSON.stringify(data.agentConfig) : null,
         JSON.stringify(data.tags ?? []),
+        JSON.stringify(data.subtasks ?? []),
         now,
         now,
       )
@@ -94,6 +97,7 @@ export function registerTaskHandlers(): void {
         customAgentCommand: data.customAgentCommand,
         agentConfig: data.agentConfig,
         tags: data.tags ?? [],
+        subtasks: data.subtasks ?? [],
         createdAt: now,
         updatedAt: now,
       }
@@ -129,9 +133,10 @@ export function registerTaskHandlers(): void {
             ? (JSON.parse(existing.agent_config) as Partial<AgentCliConfig>)
             : undefined
       const tags = data.tags ?? (JSON.parse(existing.tags) as string[])
+      const subtasks = data.subtasks ?? (existing.subtasks ? (JSON.parse(existing.subtasks) as Subtask[]) : [])
 
       db.prepare(
-        `UPDATE tasks SET title = ?, description = ?, column_id = ?, "order" = ?, project_path = ?, agent_type = ?, agent_status = ?, custom_agent_command = ?, agent_config = ?, tags = ?, updated_at = ? WHERE id = ?`,
+        `UPDATE tasks SET title = ?, description = ?, column_id = ?, "order" = ?, project_path = ?, agent_type = ?, agent_status = ?, custom_agent_command = ?, agent_config = ?, tags = ?, subtasks = ?, updated_at = ? WHERE id = ?`,
       ).run(
         title,
         description,
@@ -143,6 +148,7 @@ export function registerTaskHandlers(): void {
         customAgentCommand,
         agentConfig ? JSON.stringify(agentConfig) : null,
         JSON.stringify(tags),
+        JSON.stringify(subtasks),
         now,
         id,
       )
@@ -159,6 +165,7 @@ export function registerTaskHandlers(): void {
         customAgentCommand: customAgentCommand ?? undefined,
         agentConfig,
         tags,
+        subtasks,
         createdAt: existing.created_at,
         updatedAt: now,
       }

@@ -1,10 +1,10 @@
-import { useState } from 'react'
-import type { Task, AgentStatus, AgentActivity, AgentType } from '@shared/types'
+import { useState, useEffect, useRef } from 'react'
+import type { Task, AgentStatus, AgentActivity, AgentType, Subtask } from '@shared/types'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Card, CardContent } from '../ui/card'
 import { Button } from '../ui/button'
-import { Pencil, Trash2, Calendar, Clock, CheckSquare, ChevronDown, ChevronUp, MoreVertical } from 'lucide-react'
+import { Pencil, Trash2, Calendar, Clock, CheckSquare, ChevronDown, ChevronUp, MoreVertical, Plus, Check } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -117,6 +117,177 @@ function formatRelativeTime(ts: number): string {
   return `${years}y ago`
 }
 
+interface SubtaskItemProps {
+  subtask: Subtask
+  onToggle: () => void
+  onUpdate: (title: string) => void
+  onDelete: () => void
+}
+
+function SubtaskItem({ subtask, onToggle, onUpdate, onDelete }: SubtaskItemProps): React.ReactElement {
+  const [title, setTitle] = useState(subtask.title)
+  const [isFocused, setIsFocused] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // Sync state with prop updates
+  useEffect(() => {
+    setTitle(subtask.title)
+  }, [subtask.title])
+
+  const handleBlur = () => {
+    setIsFocused(false)
+    if (title.trim() && title.trim() !== subtask.title) {
+      onUpdate(title.trim())
+    } else {
+      setTitle(subtask.title) // revert
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      e.currentTarget.blur()
+    } else if (e.key === 'Escape') {
+      setTitle(subtask.title)
+      e.currentTarget.blur()
+    }
+  }
+
+  return (
+    <div 
+      className="flex items-center gap-2 group/subtask py-1"
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      {/* Custom Checkbox */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggle()
+        }}
+        className={`flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-md border transition-all duration-200 cursor-pointer ${
+          subtask.completed
+            ? 'border-primary bg-primary text-primary-foreground shadow-xs'
+            : 'border-muted-foreground/30 hover:border-primary/60 hover:bg-muted/40 bg-background/50'
+        }`}
+      >
+        {subtask.completed && <Check className="h-3 w-3 stroke-[3]" />}
+      </button>
+
+      {/* Inline Editable Input */}
+      <input
+        ref={inputRef}
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onFocus={() => setIsFocused(true)}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        className={`flex-1 bg-transparent px-2 py-0.5 text-xs text-foreground transition-all duration-200 rounded-lg border outline-none ${
+          isFocused 
+            ? 'border-primary/30 bg-muted/30 shadow-xs' 
+            : 'border-transparent hover:border-border/30 hover:bg-muted/20'
+        } ${
+          subtask.completed ? 'text-muted-foreground/50 line-through font-normal' : 'font-semibold text-foreground/90'
+        }`}
+        placeholder="Subtask title..."
+      />
+
+      {/* Delete Button */}
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={(e) => {
+          e.stopPropagation()
+          onDelete()
+        }}
+        className="h-7 w-7 shrink-0 rounded-lg text-muted-foreground/40 hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover/subtask:opacity-100 transition-all duration-200 cursor-pointer"
+        title="Delete subtask"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  )
+}
+
+
+interface AddSubtaskInputProps {
+  onAdd: (title: string) => void
+}
+
+function AddSubtaskInput({ onAdd }: AddSubtaskInputProps): React.ReactElement {
+  const [title, setTitle] = useState('')
+  const [isFocused, setIsFocused] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const handleSubmit = () => {
+    if (title.trim()) {
+      onAdd(title.trim())
+      setTitle('')
+      inputRef.current?.focus()
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleSubmit()
+    }
+  }
+
+  return (
+    <div 
+      className="flex items-center gap-2 mt-2"
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          handleSubmit()
+        }}
+        disabled={!title.trim()}
+        className={`flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-md border transition-all duration-200 cursor-pointer ${
+          title.trim()
+            ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary'
+            : 'border-dashed border-muted-foreground/30 text-muted-foreground/40 hover:border-primary/50 hover:text-primary/60 hover:bg-muted/30'
+        }`}
+        title="Add subtask"
+      >
+        <Plus className="h-3 w-3" />
+      </button>
+      <input
+        ref={inputRef}
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        onKeyDown={handleKeyDown}
+        placeholder="Add a subtask..."
+        className={`flex-1 bg-transparent px-2 py-0.5 text-xs transition-all duration-200 rounded-lg border outline-none ${
+          isFocused 
+            ? 'border-primary/30 bg-muted/30 shadow-xs text-foreground' 
+            : 'border-transparent text-muted-foreground/60 hover:border-border/30 hover:bg-muted/20'
+        }`}
+      />
+      {title.trim() && (
+        <Button
+          onClick={(e) => {
+            e.stopPropagation()
+            handleSubmit()
+          }}
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0 rounded-lg text-primary hover:bg-primary/10 cursor-pointer"
+          title="Save subtask"
+        >
+          <Check className="h-4 w-4 stroke-[2.5]" />
+        </Button>
+      )}
+    </div>
+  )
+}
 export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardProps): React.ReactElement {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
@@ -155,11 +326,41 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
 
   // Generate deterministic dummy data based on task id
   const charCodeSum = Array.from(task.id).reduce((sum, char) => sum + char.charCodeAt(0), 0)
-  const { tags: projectTags } = useProjectStore()
+  const { tags: projectTags, updateTask } = useProjectStore()
 
-  const totalSubtasks = (charCodeSum % 5) + 2 // 2 to 6
-  const doneSubtasks = charCodeSum % (totalSubtasks + 1)
-  const progressPercent = Math.round((doneSubtasks / totalSubtasks) * 100)
+  const subtasks = task.subtasks || []
+  const totalSubtasks = subtasks.length
+  const doneSubtasks = subtasks.filter((s) => s.completed).length
+  const progressPercent = totalSubtasks > 0 ? Math.round((doneSubtasks / totalSubtasks) * 100) : 0
+
+  const handleToggleSubtask = (subtaskId: string) => {
+    const updatedSubtasks = subtasks.map((sub) =>
+      sub.id === subtaskId ? { ...sub, completed: !sub.completed } : sub
+    )
+    updateTask(task.id, { subtasks: updatedSubtasks })
+  }
+
+  const handleUpdateSubtask = (subtaskId: string, title: string) => {
+    const updatedSubtasks = subtasks.map((sub) =>
+      sub.id === subtaskId ? { ...sub, title } : sub
+    )
+    updateTask(task.id, { subtasks: updatedSubtasks })
+  }
+
+  const handleDeleteSubtask = (subtaskId: string) => {
+    const updatedSubtasks = subtasks.filter((sub) => sub.id !== subtaskId)
+    updateTask(task.id, { subtasks: updatedSubtasks })
+  }
+
+  const handleAddSubtask = (title: string) => {
+    const newSubtask: Subtask = {
+      id: crypto.randomUUID(),
+      title,
+      completed: false
+    }
+    const updatedSubtasks = [...subtasks, newSubtask]
+    updateTask(task.id, { subtasks: updatedSubtasks })
+  }
 
   const assignees = [
     { name: 'Adit Pratama', initials: 'AP', color: 'bg-teal-600 text-teal-50' },
@@ -177,7 +378,7 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
       ref={setNodeRef}
       style={style}
       className={`group/card relative cursor-grab rounded-2xl border border-border/40 bg-card p-0 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_8px_30px_rgb(60,110,71,0.08)] active:cursor-grabbing ${
-        isDragging ? 'ring-2 ring-primary/50 opacity-40 shadow-lg' : ''
+        isDragging ? 'ring-2 ring-primary/50 shadow-lg' : ''
       } ${display.ringClass ?? ''}`}
       {...attributes}
       {...listeners}
@@ -253,6 +454,15 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
                       </span>
                     )
                   })}
+                  {totalSubtasks > 0 && (
+                    <span 
+                      className="inline-flex items-center gap-1 rounded-md border border-border/30 bg-muted/40 px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground/80 shadow-xs select-none"
+                      title={`${doneSubtasks} of ${totalSubtasks} subtasks completed`}
+                    >
+                      <CheckSquare className="w-3 h-3 text-muted-foreground/75" />
+                      <span>{doneSubtasks}/{totalSubtasks}</span>
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -359,21 +569,46 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
           </span>
         </div>
 
-        {/* Row 3: Subtasks progress bar */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <CheckSquare className="h-3.5 w-3.5 text-muted-foreground/80" />
-              Tasks Progress
+        {/* Subtasks Section */}
+        <div className="space-y-2.5 pt-0.5">
+          <div className="flex items-center justify-between text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+            <span className="flex items-center gap-1.5">
+              <CheckSquare className="h-3.5 w-3.5 text-muted-foreground/70" />
+              Subtasks
             </span>
-            <span>{doneSubtasks}/{totalSubtasks} ({progressPercent}%)</span>
+            {totalSubtasks > 0 && (
+              <span className="font-semibold tabular-nums text-foreground/80">
+                {doneSubtasks}/{totalSubtasks} ({progressPercent}%)
+              </span>
+            )}
           </div>
-          <div className="h-1.5 w-full rounded-full bg-secondary/40 overflow-hidden">
-            <div 
-              className="h-full rounded-full bg-primary transition-all duration-500"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
+
+          {totalSubtasks > 0 && (
+            <div className="h-1.5 w-full rounded-full bg-secondary/40 overflow-hidden">
+              <div 
+                className="h-full rounded-full bg-primary transition-all duration-500"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          )}
+
+          {/* Subtasks List */}
+          {totalSubtasks > 0 && (
+            <div className="space-y-1 mt-1">
+              {subtasks.map((sub) => (
+                <SubtaskItem
+                  key={sub.id}
+                  subtask={sub}
+                  onToggle={() => handleToggleSubtask(sub.id)}
+                  onUpdate={(title) => handleUpdateSubtask(sub.id, title)}
+                  onDelete={() => handleDeleteSubtask(sub.id)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Add Subtask Form */}
+          <AddSubtaskInput onAdd={handleAddSubtask} />
         </div>
 
         {/* Divider */}

@@ -81,6 +81,17 @@ function migrateSchema(): void {
       console.error('[db] Migration v6 failed:', err)
     }
   }
+
+  // v7: Add subtasks column to tasks table
+  if (currentVersion < 7) {
+    try {
+      db.exec("ALTER TABLE tasks ADD COLUMN subtasks TEXT NOT NULL DEFAULT '[]'")
+      db.pragma('user_version = 7')
+      console.log('[db] Migration v7: added subtasks to tasks table, database version set to 7')
+    } catch (err) {
+      console.error('[db] Migration v7 failed:', err)
+    }
+  }
 }
 
 function createTables(): void {
@@ -107,6 +118,7 @@ function createTables(): void {
       agent_session_id TEXT DEFAULT NULL,
       custom_agent_command TEXT,
       tags TEXT NOT NULL DEFAULT '[]',
+      subtasks TEXT NOT NULL DEFAULT '[]',
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (column_id) REFERENCES columns(id) ON DELETE CASCADE
