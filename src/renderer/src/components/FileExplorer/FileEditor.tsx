@@ -203,6 +203,14 @@ export function FileEditor({ file }: FileEditorProps): ReactElement {
             padding: { top: 8 },
             renderSideBySide: false,
             ignoreTrimWhitespace: false,
+            // Smart collapse: hide unchanged regions, show only diff hunks
+            // with context lines — focuses attention on what actually changed
+            hideUnchangedRegions: {
+              enabled: true,
+              revealLineCount: 20,
+              minimumLineCount: 3,
+              contextLineCount: 3,
+            },
           }}
         />
       </div>
