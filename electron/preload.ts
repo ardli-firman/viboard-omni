@@ -197,6 +197,19 @@ const api = {
       ipcRenderer.removeAllListeners('project:file-changed')
     }
   },
+
+  onProjectGitChanged: (callback: () => void): IpcHandler => {
+    const handler = (): void => callback()
+    ipcRenderer.on('project:git-changed', handler)
+    return handler
+  },
+  removeProjectGitChangedListener: (handler?: IpcHandler): void => {
+    if (handler) {
+      ipcRenderer.removeListener('project:git-changed', handler)
+    } else {
+      ipcRenderer.removeAllListeners('project:git-changed')
+    }
+  },
   log: {
     info: (...args: unknown[]): void => {
       const isDev = process.env.NODE_ENV === 'development' || !!(process as any).defaultApp

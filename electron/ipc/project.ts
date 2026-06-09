@@ -175,37 +175,41 @@ function startWatching(dirPath: string): void {
 
   try {
     let debounceTimeout: NodeJS.Timeout | null = null
+    let gitDebounceTimeout: NodeJS.Timeout | null = null
+
     activeWatcher = watch(dirPath, { recursive: true }, (_eventType, filename) => {
       if (!filename) return
 
       const normalized = filename.replace(/\\/g, '/')
-      
-      // Performance optimization: ignore node_modules instantly
+
+      // Performance: ignore node_modules
       if (normalized.includes('node_modules')) return
 
-      // Handle .git folder changes (commits, branches, staging/unstaging)
+      // Git changes → light refresh (git status only)
       if (normalized.includes('.git')) {
-        const isGitRefOrIndex = 
-          normalized.endsWith('.git/index') || 
-          normalized.endsWith('.git/HEAD') || 
-          normalized.includes('.git/refs/') ||
-          normalized === 'index' ||
-          normalized === 'HEAD' ||
-          normalized.endsWith('index') ||
-          normalized.endsWith('HEAD')
-        
+        const isGitRefOrIndex =
+          normalized.endsWith('.git/index') ||
+          normalized.endsWith('.git/HEAD') ||
+          normalized.includes('.git/refs/')
+
         if (!isGitRefOrIndex) return
+
+        if (gitDebounceTimeout) clearTimeout(gitDebounceTimeout)
+        gitDebounceTimeout = setTimeout(() => {
+          const win = BrowserWindow.getAllWindows()[0]
+          if (win) win.webContents.send('project:git-changed')
+        }, 300)
+        return
       }
 
-      // Debounce updates by 300ms to group multiple rapid changes (e.g. compilation/save all)
+      // Real file changes → full tree reload
       if (debounceTimeout) clearTimeout(debounceTimeout)
       debounceTimeout = setTimeout(() => {
         const win = BrowserWindow.getAllWindows()[0]
-        if (win) {
-          win.webContents.send('project:file-changed')
-        }
+        if (win) win.webContents.send('project:file-changed')
       }, 300)
     })
+
     console.log('[watcher] Started watching project:', dirPath)
   } catch (err) {
     console.error('[watcher] Failed to start watcher:', err)

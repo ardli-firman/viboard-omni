@@ -27,6 +27,7 @@ export function ExplorerPanel(): ReactElement {
   const panelWidth = useFileExplorerStore((s) => s.panelWidth)
   const setPanelWidth = useFileExplorerStore((s) => s.setPanelWidth)
   const resetPanelWidth = useFileExplorerStore((s) => s.resetPanelWidth)
+  const refreshGitStatus = useFileExplorerStore((s) => s.refreshGitStatus)
 
   const currentProject = useProjectStore((s) => s.currentProject)
 
@@ -52,6 +53,20 @@ export function ExplorerPanel(): ReactElement {
       window.electronAPI.removeProjectFileChangedListener(token)
     }
   }, [rootPath, loadTree])
+
+  useEffect(() => {
+    if (!rootPath) return
+
+    const handler = (): void => {
+      void refreshGitStatus()
+    }
+
+    const token = window.electronAPI.onProjectGitChanged(handler)
+
+    return () => {
+      window.electronAPI.removeProjectGitChangedListener(token)
+    }
+  }, [rootPath, refreshGitStatus])
 
   const viewMode = useFileExplorerStore((s) => s.viewMode)
   const activeFile = openFiles.find((f) => f.path === activeFilePath)
