@@ -35,8 +35,8 @@ export function registerGitHandlers(): void {
 
   ipcMain.handle('git:getStatus', async (_event: unknown, dirPath: string): Promise<GitStatus> => {
     try {
-      // Run porcelain v1
-      const { stdout } = await execFileAsync('git', ['status', '--porcelain'], { cwd: dirPath })
+      // Run porcelain v1 with ignored files
+      const { stdout } = await execFileAsync('git', ['status', '--porcelain', '--ignored'], { cwd: dirPath })
       const status: GitStatus = {}
 
       const lines = stdout.split('\n')

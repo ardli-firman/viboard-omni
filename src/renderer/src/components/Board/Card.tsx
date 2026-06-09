@@ -21,6 +21,7 @@ const AGENT_DISPLAY: Record<AgentType, { label: string; icon: string }> = {
   'pi-agent': { label: 'Pi Agent', icon: '🥧' },
   'hermes': { label: 'Hermes', icon: '🪄' },
   'opencode': { label: 'OpenCode', icon: '🖥️' },
+  'claude': { label: 'Claude', icon: '🧠' },
   'custom': { label: 'Custom', icon: '⚙️' },
 }
 

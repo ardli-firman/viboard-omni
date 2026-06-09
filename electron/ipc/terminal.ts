@@ -275,7 +275,7 @@ export function registerTerminalHandlers(): void {
 
       // Safety: if the agentType is not in the registry (e.g. legacy 'pi-agent' rows
       // that weren't caught by the DB migration), fall back to 'oh-my-pi'.
-      const KNOWN_TYPES: AgentType[] = ['oh-my-pi', 'gemini-cli', 'pi-agent', 'hermes', 'opencode', 'custom']
+      const KNOWN_TYPES: AgentType[] = ['oh-my-pi', 'gemini-cli', 'pi-agent', 'hermes', 'opencode', 'claude', 'custom']
       const safeAgentType: AgentType = KNOWN_TYPES.includes(agentType as AgentType)
         ? agentType
         : 'oh-my-pi'

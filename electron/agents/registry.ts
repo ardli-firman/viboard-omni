@@ -27,6 +27,7 @@ import piAgentDriver from './drivers/pi-agent'
 import hermesDriver from './drivers/hermes'
 import opencodeDriver from './drivers/opencode'
 import customDriver from './drivers/custom'
+import claudeDriver from './drivers/claude'
 
 // ── Registry ──────────────────────────────────────────────────────────────────
 
@@ -36,6 +37,7 @@ export const AGENT_DRIVERS: Record<AgentType, AgentDriver> = {
   'pi-agent': piAgentDriver,
   'opencode': opencodeDriver,
   'hermes': hermesDriver,
+  'claude': claudeDriver,
   'custom': customDriver,
 }
 
@@ -95,6 +97,15 @@ export function getDriverDefaults(type: AgentType): Partial<AgentCliConfig> {
       extraEnv: {},
       sessionMode: 'none',
       sessionArg: null,
+      sessionEnvVar: null,
+    },
+    'claude': {
+      agentType: 'claude',
+      binaryPath: null,
+      extraArgs: [],
+      extraEnv: {},
+      sessionMode: 'resume-file',
+      sessionArg: '--session-id',
       sessionEnvVar: null,
     },
     'custom': {

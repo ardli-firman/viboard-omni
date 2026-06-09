@@ -62,6 +62,15 @@ const DEFAULT_SETTINGS: AppSettings = {
       sessionArg: null,
       sessionEnvVar: null,
     },
+    claude: {
+      agentType: 'claude',
+      binaryPath: null,
+      extraArgs: [],
+      extraEnv: {},
+      sessionMode: 'resume-file',
+      sessionArg: '--session-id',
+      sessionEnvVar: null,
+    },
     custom: {
       agentType: 'custom',
       binaryPath: null,

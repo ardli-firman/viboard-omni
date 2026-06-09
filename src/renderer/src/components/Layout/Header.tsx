@@ -61,7 +61,8 @@ export function Header(): React.ReactElement {
                settings.defaultAgentType === 'gemini-cli' ? '✨' :
                settings.defaultAgentType === 'pi-agent' ? '🥧' :
                settings.defaultAgentType === 'hermes' ? '🪄' :
-               settings.defaultAgentType === 'opencode' ? '🖥️' : '⚙️'}
+               settings.defaultAgentType === 'opencode' ? '🖥️' :
+               settings.defaultAgentType === 'claude' ? '🧠' : '⚙️'}
             </span>
             <span>{settings.defaultAgentType}</span>
           </div>

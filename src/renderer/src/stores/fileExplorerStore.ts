@@ -44,6 +44,7 @@ interface FileExplorerState {
   treeError: string | null
   expandedPaths: Set<string>
   gitStatus: Record<string, string>
+  gitIgnored: Set<string>
   gitBranch: string | null
   openFiles: OpenFile[]
   activeFilePath: string | null
@@ -73,6 +74,7 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   treeError: null,
   expandedPaths: new Set<string>(),
   gitStatus: {},
+  gitIgnored: new Set<string>(),
   gitBranch: null,
   openFiles: [],
   activeFilePath: null,
@@ -98,19 +100,29 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
       toast.error('Failed to load project files')
     }
   },
-
   refreshGitStatus: async () => {
     const { rootPath } = get()
     if (!rootPath) return
     try {
-      const status = await window.electronAPI.getGitStatus(rootPath)
+      const rawStatus = await window.electronAPI.getGitStatus(rootPath) as Record<string, string>
+      const gitStatus: Record<string, string> = {}
+      const gitIgnored = new Set<string>()
+
+      for (const [filePath, code] of Object.entries(rawStatus)) {
+        if (code === '!!') {
+          gitIgnored.add(filePath)
+        } else {
+          gitStatus[filePath] = code
+        }
+      }
+
       let branch: string | null = null
       try {
         branch = await window.electronAPI.getGitBranch(rootPath)
       } catch (err) {
         // Ignored
       }
-      set({ gitStatus: status, gitBranch: branch || null })
+      set({ gitStatus, gitIgnored, gitBranch: branch || null })
     } catch (err) {
       // Ignored
     }

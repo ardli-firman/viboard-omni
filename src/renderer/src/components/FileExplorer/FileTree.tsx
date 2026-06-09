@@ -12,6 +12,7 @@ function TreeNode({ item, depth }: { item: FileTreeItem; depth: number }): React
   const toggleExpand = useFileExplorerStore((s) => s.toggleExpand)
   const openFile = useFileExplorerStore((s) => s.openFile)
   const gitStatus = useFileExplorerStore((s) => s.gitStatus)
+  const gitIgnored = useFileExplorerStore((s) => s.gitIgnored)
 
   const isExpanded = expandedPaths.has(item.path)
   const isActive = activeFilePath === item.path
@@ -34,6 +35,20 @@ function TreeNode({ item, depth }: { item: FileTreeItem; depth: number }): React
     }
   }
 
+  const isIgnored = !item.isDirectory && gitIgnored.has(item.relativePath)
+  let dirIgnored = false
+  if (item.isDirectory && gitIgnored.size > 0) {
+    const prefix = item.relativePath + '/'
+    for (const k of gitIgnored) {
+      if (k.startsWith(prefix)) {
+        dirIgnored = true
+        break
+      }
+    }
+  }
+
+  const isDimmed = isIgnored || dirIgnored
+
   const Icon = getFileIcon(item.name, item.extension, item.isDirectory, isExpanded)
   const iconColor = item.isDirectory ? 'text-sky-400' : getFileIconColor(item.extension)
   const textColor = isActive
@@ -42,7 +57,9 @@ function TreeNode({ item, depth }: { item: FileTreeItem; depth: number }): React
       ? 'text-amber-600 dark:text-amber-400'
       : isAdded || dirAdded
         ? 'text-emerald-600 dark:text-emerald-400'
-        : 'text-muted-foreground/80'
+        : isDimmed
+          ? 'text-muted-foreground/30'
+          : 'text-muted-foreground/80'
 
   // Indent: each level = 14px (icon column at fixed offset, name follows)
   const baseIndent = 18
@@ -66,7 +83,7 @@ function TreeNode({ item, depth }: { item: FileTreeItem; depth: number }): React
           isActive
             ? 'bg-primary/10 border-r-2 border-primary font-bold'
             : 'hover:bg-primary/5 hover:text-foreground font-medium'
-        }`}
+        } ${isDimmed ? 'opacity-40' : ''}`}
         style={{ paddingLeft: nameLeft }}
         title={item.relativePath}
       >
@@ -83,7 +100,7 @@ function TreeNode({ item, depth }: { item: FileTreeItem; depth: number }): React
             )}
           </span>
         )}
-        <Icon className={`h-4 w-4 shrink-0 ${iconColor} transition-transform group-hover:scale-110`} />
+        <Icon className={`h-4 w-4 shrink-0 ${iconColor} transition-transform group-hover:scale-110 ${isDimmed ? 'opacity-40' : ''}`} />
         <span className="ml-2 truncate">{item.name}</span>
         {status && !item.isDirectory && (
           <span className={`ml-auto text-[9px] font-extrabold px-1 rounded-sm ${isModified ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'}`}>

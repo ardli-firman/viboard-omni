@@ -66,6 +66,14 @@ const AGENT_META: AgentMeta[] = [
     supportsSession: false,
   },
   {
+    type: 'claude',
+    label: 'Claude Code',
+    description: 'Anthropic Claude Code CLI — @anthropic-ai/claude-code',
+    icon: '🧠',
+    defaultBinary: 'claude',
+    supportsSession: true,
+  },
+  {
     type: 'custom',
     label: 'Custom Command',
     description: 'Fully custom agent CLI — define your own binary and args',

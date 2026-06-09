@@ -24,6 +24,7 @@ const AGENT_OPTIONS: { type: AgentType; label: string; icon: string; description
   { type: 'pi-agent',   label: 'Pi Agent',    icon: '🥧', description: 'Pi Agent CLI' },
   { type: 'hermes',     label: 'Hermes',      icon: '🪄', description: 'Hermes Agent CLI' },
   { type: 'opencode',   label: 'OpenCode',    icon: '🖥️', description: 'OpenCode AI agent' },
+  { type: 'claude',     label: 'Claude',      icon: '🧠', description: 'Claude Code CLI' },
   { type: 'custom',     label: 'Custom',      icon: '⚙️', description: 'Custom command' },
 ]
 
