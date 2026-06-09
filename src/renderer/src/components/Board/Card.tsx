@@ -127,12 +127,21 @@ interface SubtaskItemProps {
 function SubtaskItem({ subtask, onToggle, onUpdate, onDelete }: SubtaskItemProps): React.ReactElement {
   const [title, setTitle] = useState(subtask.title)
   const [isFocused, setIsFocused] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Sync state with prop updates
   useEffect(() => {
     setTitle(subtask.title)
   }, [subtask.title])
+
+  // Auto-adjust height based on content
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (textarea) {
+      textarea.style.height = 'auto'
+      textarea.style.height = `${textarea.scrollHeight}px`
+    }
+  }, [title])
 
   const handleBlur = () => {
     setIsFocused(false)
@@ -143,11 +152,13 @@ function SubtaskItem({ subtask, onToggle, onUpdate, onDelete }: SubtaskItemProps
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    e.stopPropagation()
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       e.currentTarget.blur()
     } else if (e.key === 'Escape') {
+      e.preventDefault()
       setTitle(subtask.title)
       e.currentTarget.blur()
     }
@@ -155,9 +166,11 @@ function SubtaskItem({ subtask, onToggle, onUpdate, onDelete }: SubtaskItemProps
 
   return (
     <div 
-      className="flex items-center gap-2 group/subtask py-1"
+      className="flex items-start gap-2 group/subtask py-1"
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Custom Checkbox */}
       <button
@@ -165,7 +178,7 @@ function SubtaskItem({ subtask, onToggle, onUpdate, onDelete }: SubtaskItemProps
           e.stopPropagation()
           onToggle()
         }}
-        className={`flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-md border transition-all duration-200 cursor-pointer ${
+        className={`flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-md border transition-all duration-200 cursor-pointer mt-1 ${
           subtask.completed
             ? 'border-primary bg-primary text-primary-foreground shadow-xs'
             : 'border-muted-foreground/30 hover:border-primary/60 hover:bg-muted/40 bg-background/50'
@@ -174,19 +187,19 @@ function SubtaskItem({ subtask, onToggle, onUpdate, onDelete }: SubtaskItemProps
         {subtask.completed && <Check className="h-3 w-3 stroke-[3]" />}
       </button>
 
-      {/* Inline Editable Input */}
-      <input
-        ref={inputRef}
-        type="text"
+      {/* Inline Editable Textarea */}
+      <textarea
+        ref={textareaRef}
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onFocus={() => setIsFocused(true)}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
-        className={`flex-1 bg-transparent px-2 py-0.5 text-xs text-foreground transition-all duration-200 rounded-lg border outline-none ${
+        rows={1}
+        className={`flex-1 bg-transparent px-2 py-0.5 text-xs text-foreground transition-all duration-200 rounded-lg border-0 focus:ring-0 outline-none resize-none overflow-hidden h-auto leading-relaxed ${
           isFocused 
-            ? 'border-primary/30 bg-muted/30 shadow-xs' 
-            : 'border-transparent hover:border-border/30 hover:bg-muted/20'
+            ? 'bg-muted/30' 
+            : 'hover:bg-muted/20'
         } ${
           subtask.completed ? 'text-muted-foreground/50 line-through font-normal' : 'font-semibold text-foreground/90'
         }`}
@@ -201,7 +214,7 @@ function SubtaskItem({ subtask, onToggle, onUpdate, onDelete }: SubtaskItemProps
           e.stopPropagation()
           onDelete()
         }}
-        className="h-7 w-7 shrink-0 rounded-lg text-muted-foreground/40 hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover/subtask:opacity-100 transition-all duration-200 cursor-pointer"
+        className="h-7 w-7 shrink-0 rounded-lg text-muted-foreground/40 hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover/subtask:opacity-100 transition-all duration-200 cursor-pointer mt-0.5"
         title="Delete subtask"
       >
         <Trash2 className="h-3.5 w-3.5" />
@@ -218,28 +231,50 @@ interface AddSubtaskInputProps {
 function AddSubtaskInput({ onAdd }: AddSubtaskInputProps): React.ReactElement {
   const [title, setTitle] = useState('')
   const [isFocused, setIsFocused] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const handleSubmit = () => {
     if (title.trim()) {
       onAdd(title.trim())
       setTitle('')
-      inputRef.current?.focus()
+      setTimeout(() => {
+        textareaRef.current?.focus()
+        textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }, 100)
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+  // Auto-adjust height based on content
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (textarea) {
+      textarea.style.height = 'auto'
+      textarea.style.height = `${textarea.scrollHeight}px`
+    }
+  }, [title])
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    e.stopPropagation()
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSubmit()
     }
   }
 
+  const handleFocus = () => {
+    setIsFocused(true)
+    setTimeout(() => {
+      textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, 100)
+  }
+
   return (
     <div 
-      className="flex items-center gap-2 mt-2"
+      className="flex items-start gap-2 mt-2"
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
     >
       <button
         onClick={(e) => {
@@ -247,7 +282,7 @@ function AddSubtaskInput({ onAdd }: AddSubtaskInputProps): React.ReactElement {
           handleSubmit()
         }}
         disabled={!title.trim()}
-        className={`flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-md border transition-all duration-200 cursor-pointer ${
+        className={`flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-md border transition-all duration-200 cursor-pointer mt-1 ${
           title.trim()
             ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary'
             : 'border-dashed border-muted-foreground/30 text-muted-foreground/40 hover:border-primary/50 hover:text-primary/60 hover:bg-muted/30'
@@ -256,19 +291,19 @@ function AddSubtaskInput({ onAdd }: AddSubtaskInputProps): React.ReactElement {
       >
         <Plus className="h-3 w-3" />
       </button>
-      <input
-        ref={inputRef}
-        type="text"
+      <textarea
+        ref={textareaRef}
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        onFocus={() => setIsFocused(true)}
+        onFocus={handleFocus}
         onBlur={() => setIsFocused(false)}
         onKeyDown={handleKeyDown}
         placeholder="Add a subtask..."
-        className={`flex-1 bg-transparent px-2 py-0.5 text-xs transition-all duration-200 rounded-lg border outline-none ${
+        rows={1}
+        className={`flex-1 bg-transparent px-2 py-0.5 text-xs transition-all duration-200 rounded-lg border-0 focus:ring-0 outline-none resize-none overflow-hidden h-auto leading-relaxed ${
           isFocused 
-            ? 'border-primary/30 bg-muted/30 shadow-xs text-foreground' 
-            : 'border-transparent text-muted-foreground/60 hover:border-border/30 hover:bg-muted/20'
+            ? 'bg-muted/30 text-foreground' 
+            : 'text-muted-foreground/60 hover:bg-muted/20'
         }`}
       />
       {title.trim() && (
@@ -279,7 +314,7 @@ function AddSubtaskInput({ onAdd }: AddSubtaskInputProps): React.ReactElement {
           }}
           variant="ghost"
           size="icon"
-          className="h-7 w-7 shrink-0 rounded-lg text-primary hover:bg-primary/10 cursor-pointer"
+          className="h-7 w-7 shrink-0 rounded-lg text-primary hover:bg-primary/10 cursor-pointer mt-0.5"
           title="Save subtask"
         >
           <Check className="h-4 w-4 stroke-[2.5]" />
