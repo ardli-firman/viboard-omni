@@ -506,7 +506,7 @@ export function Board(): React.ReactElement {
   const activeColumn = activeId && activeType === 'column' ? sortedColumnsFromStore.find((c) => c.id === activeId) : null
 
   return (
-    <div className="flex h-full flex-col bg-transparent">
+    <div className="relative flex h-full flex-col bg-transparent">
       <div className="z-10 flex h-14 shrink-0 items-center justify-between border-b border-border/25 bg-background/40 px-6 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-bold uppercase tracking-[0.08em] text-muted-foreground">Kanban Board</h2>
@@ -540,60 +540,6 @@ export function Board(): React.ReactElement {
         onMouseLeave={handleMouseUp}
         style={{ cursor: isPanning ? 'grabbing' : undefined }}
       >
-        {/* Floating Compact Zoom Controls */}
-        <div
-          className="absolute bottom-6 right-6 z-20 flex items-center gap-1 rounded-xl border border-border/40 bg-background/60 p-1 shadow-lg backdrop-blur-md transition-all hover:bg-background/80 hover:shadow-xl"
-          onMouseDown={(e) => e.stopPropagation()}
-          onWheel={(e) => e.stopPropagation()}
-        >
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
-            onClick={zoomOut}
-            disabled={scale <= 0.1}
-            title="Zoom out (Ctrl+-)"
-          >
-            <Minus className="h-3.5 w-3.5" />
-          </Button>
-          <button
-            onClick={resetZoom}
-            className="min-w-12 px-1 text-center text-xs font-semibold tabular-nums text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-            title="Reset zoom to 100% (Ctrl+0)"
-          >
-            {Math.round(scale * 100)}%
-          </button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
-            onClick={zoomIn}
-            disabled={scale >= 2}
-            title="Zoom in (Ctrl++)"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </Button>
-          <div className="h-4 w-px bg-border/40 mx-0.5" />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
-            onClick={autoFit}
-            title="Fit board to viewport"
-          >
-            <Maximize2 className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
-            onClick={resetZoom}
-            disabled={scale === 1}
-            title="Reset position and zoom (Ctrl+0)"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-          </Button>
-        </div>
 
         <div
           style={{
@@ -679,6 +625,60 @@ export function Board(): React.ReactElement {
           )}
           </div>
         </div>
+      </div>
+      {/* Floating Compact Zoom Controls */}
+      <div
+        className="absolute bottom-6 right-6 z-20 flex items-center gap-1 rounded-xl border border-border/40 bg-background/60 p-1 shadow-lg backdrop-blur-md transition-all hover:bg-background/80 hover:shadow-xl"
+        onMouseDown={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+      >
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+          onClick={zoomOut}
+          disabled={scale <= 0.1}
+          title="Zoom out (Ctrl+-)"
+        >
+          <Minus className="h-3.5 w-3.5" />
+        </Button>
+        <button
+          onClick={resetZoom}
+          className="min-w-12 px-1 text-center text-xs font-semibold tabular-nums text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          title="Reset zoom to 100% (Ctrl+0)"
+        >
+          {Math.round(scale * 100)}%
+        </button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+          onClick={zoomIn}
+          disabled={scale >= 2}
+          title="Zoom in (Ctrl++)"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </Button>
+        <div className="h-4 w-px bg-border/40 mx-0.5" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+          onClick={autoFit}
+          title="Fit board to viewport"
+        >
+          <Maximize2 className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+          onClick={resetZoom}
+          disabled={scale === 1}
+          title="Reset position and zoom (Ctrl+0)"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+        </Button>
       </div>
       <TaskModal
         open={taskModalOpen}
