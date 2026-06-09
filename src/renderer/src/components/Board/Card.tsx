@@ -438,66 +438,100 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
               <h4 className="text-sm font-bold leading-snug tracking-tight text-foreground transition-colors group-hover/card:text-primary">
                 {task.title}
               </h4>
-              {/* Collapsed: agent badge + tags in one row */}
+              {/* Collapsed: rich preview */}
               {isCollapsed && (
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {realStatus !== 'idle' && (
-                    <span className="inline-flex items-center gap-1.5 rounded-md border border-border/30 bg-muted/40 px-1.5 py-0.5 text-[9px] font-bold uppercase text-muted-foreground/80 shadow-xs select-none">
-                      <AgentIcon type={task.agentType} className="w-3.5 h-3.5 shrink-0" />
-                      <span>{AGENT_DISPLAY[task.agentType]?.label ?? task.agentType}</span>
-                      <span className="relative flex h-1.5 w-1.5 shrink-0">
-                        {realStatus === 'running' && (
-                          <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                            realActivity === 'thinking' ? 'bg-indigo-400' :
-                            realActivity === 'tool_use' ? 'bg-purple-400' :
-                            realActivity === 'responding' ? 'bg-emerald-400' : 'bg-amber-400'
-                          }`}></span>
-                        )}
-                        <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${
-                          realStatus === 'completed' ? 'bg-emerald-500' :
-                          realStatus === 'error' ? 'bg-destructive' :
-                          realActivity === 'thinking' ? 'bg-indigo-500' :
-                          realActivity === 'tool_use' ? 'bg-purple-500' :
-                          realActivity === 'responding' ? 'bg-emerald-500' : 'bg-amber-500'
-                        }`}></span>
-                      </span>
-                      {realStatus === 'running' && (
-                        <span className="text-[8px] text-muted-foreground/60 lowercase font-medium">
-                          ({realActivity === 'tool_use' ? 'tool' : realActivity})
+                <div className="space-y-1.5 pt-1">
+                  {/* Row 1: Agent badge + Tags + Subtask count */}
+                  <div className="flex flex-wrap items-center gap-1">
+                    {realStatus !== 'idle' && (
+                      <span className="inline-flex h-5 items-center gap-1 rounded-md border border-border/30 bg-muted/40 px-1.5 text-[10px] font-semibold text-muted-foreground/80 select-none">
+                        <AgentIcon type={task.agentType} className="w-3.5 h-3.5 shrink-0" />
+                        <span>{AGENT_DISPLAY[task.agentType]?.label ?? task.agentType}</span>
+                        <span className="relative flex h-1.5 w-1.5 shrink-0">
+                          {realStatus === 'running' && (
+                            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                              realActivity === 'thinking' ? 'bg-indigo-400' :
+                              realActivity === 'tool_use' ? 'bg-purple-400' :
+                              realActivity === 'responding' ? 'bg-emerald-400' : 'bg-amber-400'
+                            }`} />
+                          )}
+                          <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${
+                            realStatus === 'completed' ? 'bg-emerald-500' :
+                            realStatus === 'error' ? 'bg-destructive' :
+                            realActivity === 'thinking' ? 'bg-indigo-500' :
+                            realActivity === 'tool_use' ? 'bg-purple-500' :
+                            realActivity === 'responding' ? 'bg-emerald-500' : 'bg-amber-500'
+                          }`} />
                         </span>
-                      )}
-                    </span>
-                  )}
-                  {task.tags && task.tags.length > 0 && task.tags.map((tagId) => {
-                    const tag = projectTags.find((t) => t.id === tagId)
-                    if (!tag) return null
-                    return (
-                      <span
-                        key={tag.id}
-                        style={{
-                          backgroundColor: `${tag.color}15`,
-                          color: tag.color,
-                          borderColor: `${tag.color}35`,
-                        }}
-                        className="inline-flex items-center rounded-md border px-1.5 py-0.5 text-[8px] font-extrabold tracking-wider uppercase shadow-xs"
-                      >
-                        <span
-                          className="h-1 w-1 rounded-full mr-1"
-                          style={{ backgroundColor: tag.color }}
-                        />
-                        {tag.name}
+                        {realStatus === 'running' && (
+                          <span className="text-[9px] text-muted-foreground/60 lowercase">
+                            {realActivity === 'tool_use' ? 'tool' : realActivity}
+                          </span>
+                        )}
                       </span>
-                    )
-                  })}
+                    )}
+                    {task.tags && task.tags.length > 0 && task.tags.map((tagId) => {
+                      const tag = projectTags.find((t) => t.id === tagId)
+                      if (!tag) return null
+                      return (
+                        <span
+                          key={tag.id}
+                          style={{
+                            backgroundColor: `${tag.color}15`,
+                            color: tag.color,
+                            borderColor: `${tag.color}35`,
+                          }}
+                          className="inline-flex h-5 items-center rounded-md border px-1.5 text-[10px] font-bold tracking-wider uppercase"
+                        >
+                          <span className="h-1 w-1 rounded-full mr-1" style={{ backgroundColor: tag.color }} />
+                          {tag.name}
+                        </span>
+                      )
+                    })}
+                    {totalSubtasks > 0 && (
+                      <span
+                        className="inline-flex h-5 items-center gap-1 rounded-md border border-border/30 bg-muted/40 px-1.5 text-[10px] font-semibold text-muted-foreground/80 select-none"
+                        title={`${doneSubtasks} of ${totalSubtasks} subtasks`}
+                      >
+                        <CheckSquare className="w-3 h-3 text-muted-foreground/70" />
+                        {doneSubtasks}/{totalSubtasks}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Row 2: Mini progress bar + fraction */}
                   {totalSubtasks > 0 && (
-                    <span 
-                      className="inline-flex items-center gap-1 rounded-md border border-border/30 bg-muted/40 px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground/80 shadow-xs select-none"
-                      title={`${doneSubtasks} of ${totalSubtasks} subtasks completed`}
-                    >
-                      <CheckSquare className="w-3 h-3 text-muted-foreground/75" />
-                      <span>{doneSubtasks}/{totalSubtasks}</span>
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 rounded-full bg-secondary/40 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-primary transition-all duration-500"
+                          style={{ width: `${progressPercent}%` }}
+                        />
+                      </div>
+                      <span className="text-[9px] font-bold tabular-nums text-muted-foreground/60">
+                        {progressPercent}%
+                      </span>
+                    </div>
                   )}
+
+                  {/* Row 3: Assignee · Due · Created — clean metadata bar */}
+                  <div className="flex items-center gap-1.5 pt-0.5">
+                    <div
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[8px] font-bold shadow-xs ${assignee.color}`}
+                      title={assignee.name}
+                    >
+                      {assignee.initials}
+                    </div>
+                    <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground/70">
+                      <Calendar className="h-3 w-3 text-muted-foreground/50" />
+                      {dueDate}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground/20">·</span>
+                    <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground/60">
+                      <Clock className="h-3 w-3 text-muted-foreground/45" />
+                      {formatRelativeTime(task.createdAt)}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
