@@ -54,3 +54,4 @@ coverage/
 node_modules/.bin/
 
 .omp/
+.viboard/
