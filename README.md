@@ -2,7 +2,6 @@
   <br />
   <img src="./electron/viboard_icon_green.png" width="128" height="128" alt="ViBoard Omni Icon" />
   <br />
-  <samp><strong>V I B O A R D &nbsp; O N M I</strong></samp>
   <h1 align="center">ViBoard Omni</h1>
   <p align="center">
     <strong>A Sleek Developer's Kanban Board with Integrated Local AI Agent CLI Sessions</strong>
