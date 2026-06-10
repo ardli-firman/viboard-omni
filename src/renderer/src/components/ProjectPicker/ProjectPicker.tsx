@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from '../ui/dialog'
 import { Button } from '../ui/button'
+import viboardIcon from '@/assets/viboard_icon_green.png'
 
 function formatDate(ts: number): string {
   const ago = Date.now() - ts
@@ -100,8 +101,8 @@ export function ProjectPicker(): React.ReactElement {
         
         {/* Welcome Section */}
         <div className="text-center space-y-3">
-          <div className="relative mx-auto mb-2 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20 text-primary shadow-xs">
-            <FolderOpen className="h-8 w-8" />
+          <div className="relative mx-auto mb-2 inline-flex h-16 w-16 items-center justify-center">
+            <img src={viboardIcon} alt="ViBoard-omni Logo" className="h-16 w-16 select-none object-contain" />
             <span className="absolute -top-1 -right-1 flex h-3 w-3">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
@@ -109,7 +110,7 @@ export function ProjectPicker(): React.ReactElement {
           </div>
           <h2 className="text-3xl font-extrabold tracking-tight">
             <span className="text-primary">
-              Welcome to Viboard
+              Welcome to ViBoard.omni
             </span>
           </h2>
           <p className="mx-auto max-w-md text-sm font-medium text-muted-foreground/90 leading-relaxed">

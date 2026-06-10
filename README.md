@@ -1,5 +1,7 @@
 <p align="center">
   <br />
+  <img src="./build/icon.png" width="128" height="128" alt="ViBoard Omni Icon" />
+  <br />
   <samp><strong>V I B O A R D &nbsp; O N M I</strong></samp>
   <h1 align="center">📋 ViBoard Omni</h1>
   <p align="center">
@@ -36,7 +38,72 @@ AI coding agents (like Anthropic's **Claude Code** or Google's **Gemini CLI**) a
 *   **🛡️ Git Worktree Isolation**: Every card automatically creates a dedicated Git worktree (`.viboard/worktrees/<taskId>`) under the hood. Agents run in their own sandbox, keeping your main branch and active files 100% safe.
 *   **🧠 Visual Task Binding**: No more juggling session UUIDs in separate terminal tabs. Every card on the board binds to its own terminal state and automatically resumes its conversation context when clicked.
 *   **🔍 Live Activity Tracking**: Stop guessing what the agent is doing. ViBoard parses the terminal output stream and shows real-time status badges (`Thinking` 🧠, `Tool Using` 🔧, `Responding` 💬) directly on the board.
-*   **⚙️ Autonomous Warm-ups**: When a task moves to In Progress, ViBoard sets up the worktree and runs dependency installs (`npm/yarn/pnpm`) in the background so the agent is ready to code immediately.
+*   **⚙️ Autonomous Warm-ups**: When a task moves to *In Progress*, ViBoard sets up the worktree and runs dependency installs (`npm/yarn/pnpm`) in the background so the agent is ready to code immediately.
+
+---
+
+## 🏛️ System Architecture
+
+ViBoard Omni leverages a multi-process Electron architecture to isolate terminal streams, file watchers, and databases, keeping the React rendering process butter-smooth at a consistent **60 FPS**.
+
+```mermaid
+graph TD
+    subgraph Renderer Process [React Frontend]
+        UI[Kanban Board / Task Modals]
+        Xterm[xterm.js Embedded Terminal]
+        Monaco[Monaco Editor / File Viewer]
+        Zustand[Zustand State Store]
+    end
+
+    subgraph Preload Bridge [IPC Layer]
+        IPC[preload.js Context Bridge]
+    end
+
+    subgraph Main Process [Electron Node Shell]
+        PTY[node-pty Stream Manager]
+        DB[(SQLite / better-sqlite3)]
+        Git[Git Worktree Controller]
+        Watcher[chokidar File Watcher]
+    end
+
+    subgraph Sandbox [Isolasi Workspace]
+        WT[Git Worktree: .viboard/worktrees/task-id]
+        CLI[AI Coding Agent Session: Claude/Gemini]
+    end
+
+    UI --> Zustand
+    Zustand <--> IPC
+    IPC <--> PTY
+    IPC <--> DB
+    IPC <--> Git
+    IPC <--> Watcher
+    PTY <--> CLI
+    CLI --> WT
+    Watcher --> WT
+    Git --> WT
+```
+
+---
+
+## 🔧 Core Mechanics Under the Hood
+
+### 1. Sandboxed Git Worktrees
+When a task moves to **In Progress**:
+1. Electron issues a native git command: `git worktree add -b viboard/task-<id> .viboard/worktrees/<id>`.
+2. A separate virtual branch is created, checking out the files into a subdirectory.
+3. The AI agent's process is spawned with its current working directory (`CWD`) set *only* to this sandboxed path.
+4. When the task is completed, you can review the changes and merge them safely into your main branch.
+
+### 2. High-Performance PTY Buffering
+AI agents print hundreds of lines of output in milliseconds. Piping raw terminal data directly to React components can freeze the browser thread.
+* ViBoard Omni implements a **30 FPS frame-limiting buffer** (32ms interval flushing) for `node-pty`.
+* Large stdout chunks are merged in the Node process and sent via IPC in throttled micro-batches.
+* Embedded terminals use `@xterm/addon-fit` for responsive scaling inside Kanban cards.
+
+### 3. Local SQLite Schema
+All board states, terminal logs, and project metadata are saved locally in a fast, embedded SQLite database via `better-sqlite3`.
+* **Zero Cloud Dependency**: Your data never leaves your computer.
+* **Persistent Sessions**: Terminals are re-connected to the correct database-saved PTY sessions on app relaunch.
 
 ---
 
@@ -50,7 +117,7 @@ AI coding agents (like Anthropic's **Claude Code** or Google's **Gemini CLI**) a
 ### 🤖 Embedded Terminals (xterm.js + node-pty)
 *   Card-specific terminal sessions that look and feel premium.
 *   Supports interactive CLI agent sessions.
-*   Performance optimized: PTY streams are buffered and flushed at **30 FPS (32ms)** to avoid CPU bottlenecks and UI lag.
+*   Performance optimized to avoid CPU bottlenecks and UI lag.
 
 ### 🔌 Extensible CLI Drivers
 *   **Claude Code** (`claude` CLI) with auto session-ID mapping.
@@ -76,6 +143,9 @@ AI coding agents (like Anthropic's **Claude Code** or Google's **Gemini CLI**) a
 
 ```text
 viboard-omni/
+├── build/                      # Build assets, installers, and native icons
+│   ├── icon.ico                # Multi-resolution Windows launcher icon
+│   └── icon.png                # High-res transparent brand icon
 ├── electron/                   # Main Process (System, Database & PTY)
 │   ├── agents/                 # CLI Agent Drivers & Registry
 │   │   ├── drivers/            # Individual CLI integrations
@@ -99,7 +169,7 @@ viboard-omni/
 ### Prerequisites
 1. **Node.js** (v20 or higher)
 2. **Git** installed globally
-3. Your preferred **Agent CLI** installed and accessible in your shell (e.g. `npm install -g @anthropic-ai/claude-code`)
+3. Your preferred **Agent CLI** installed and accessible in your shell (e.g., `npm install -g @anthropic-ai/claude-code` or `npm install -g @google/gemini-cli`)
 
 ### Installation & Launch
 
@@ -123,7 +193,29 @@ viboard-omni/
    ```bash
    npm run package
    ```
-   *Your built installer will be generated in the `out/` or `dist/` folder.*
+   *Your built installer will be generated in the `dist/` folder.*
+
+---
+
+## 🛠️ Compilation & Troubleshooting (Windows Native Addons)
+
+Because ViBoard Omni relies on native Node C++ bindings (`node-pty` and `better-sqlite3`), compiling the project on Windows requires build tools.
+
+### Visual Studio Compiler Issues
+If you run `npm run package` or `npm install` and get this error:
+> `Error: Could not find any Visual Studio installation to use`
+
+This means `node-gyp` cannot locate C++ compilers on your system. To solve this:
+1. Open PowerShell as Administrator and install C++ Build Tools:
+   ```powershell
+   npm install --global --production windows-build-tools
+   ```
+   *OR*
+2. Download and install [Visual Studio Community](https://visualstudio.microsoft.com/vs/community/) and make sure to select the **Desktop development with C++** workload during installation.
+3. Configure `npm` to use your Visual Studio version:
+   ```bash
+   npm config set msvs_version 2022
+   ```
 
 ---
 

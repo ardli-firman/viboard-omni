@@ -73,6 +73,19 @@
     "typescript": "^5.7.2",
     "vite": "^6.0.5"
   },
+  "build": {
+    "appId": "com.viboard.omni",
+    "productName": "ViBoard Omni",
+    "win": {
+      "icon": "build/icon.ico"
+    },
+    "mac": {
+      "icon": "build/icon.png"
+    },
+    "directories": {
+      "output": "dist"
+    }
+  },
   "engines": {
     "node": ">=20"
   }

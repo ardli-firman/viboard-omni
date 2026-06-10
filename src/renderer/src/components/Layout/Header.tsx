@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Moon, Sun, FolderKanban, Settings } from 'lucide-react'
+import { Moon, Sun, Settings } from 'lucide-react'
 import { Button } from '../ui/button'
 import { useThemeStore } from '../../stores/themeStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { AgentSettingsModal } from '../Settings/AgentSettingsModal'
 import { AgentIcon } from '../AgentIcon'
+import viboardIcon from '@/assets/viboard_icon_green.png'
 
 function basename(p: string): string {
   const parts = p.split(/[\\\/]/).filter(Boolean)
@@ -24,12 +25,10 @@ export function Header(): React.ReactElement {
         <div className="flex items-center gap-4">
           {/* Brand logo */}
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-xs border border-primary/20">
-              <FolderKanban className="h-4.5 w-4.5" />
-            </div>
+            <img src={viboardIcon} alt="ViBoard-omni Logo" className="h-7.5 w-7.5 select-none object-contain" />
             <h1 className="text-base font-extrabold tracking-tight select-none">
               <span className="text-primary">
-                Viboard
+                ViBoard
               </span>
               <span className="text-muted-foreground/90 font-medium">.omni</span>
             </h1>
