@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, FolderOpen, Trash2, Folder, Terminal, Sliders, Cpu, Loader2 } from 'lucide-react'
+import { Plus, Trash2, Folder, Terminal, Sliders, Cpu, Loader2 } from 'lucide-react'
 import { useProjectStore } from '../../stores/projectStore'
 import type { RegisteredProject } from '@shared/types'
 import {

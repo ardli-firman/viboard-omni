@@ -40,7 +40,6 @@
     "date-fns": "^4.4.0",
     "electron-store": "^11.0.2",
     "lucide-react": "^0.469.0",
-    "node-pty": "^1.1.0",
     "react": "^19.0.0",
     "react-day-picker": "^10.0.1",
     "react-dom": "^19.0.0",
