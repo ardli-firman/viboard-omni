@@ -1,6 +1,9 @@
 {
   "name": "viboard-omni",
   "version": "0.1.0",
+  "author": {
+    "name": "ardli-firman"
+  },
   "description": "Kanban board with agent CLI integration",
   "main": "./out/main/index.js",
   "type": "module",
