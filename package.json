@@ -16,7 +16,8 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
-    "package": "electron-vite build && electron-builder --dir"
+    "package": "electron-vite build && electron-builder",
+    "package:dir": "electron-vite build && electron-builder --dir"
   },
   "dependencies": {
     "@cocktailpeanut/node-pty-prebuilt-multiarch": "^0.11.16",
