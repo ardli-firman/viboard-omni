@@ -26,6 +26,7 @@ interface ProjectState {
   deleteTask: (id: string) => Promise<void>
   moveTask: (taskId: string, columnId: string, order: number) => Promise<void>
   setAgentStatus: (taskId: string, status: AgentStatus) => void
+  setTaskWorktreeStatus: (taskId: string, status: Task['worktreeStatus'], path: string | null, error?: string) => void
   addProjectTag: (name: string, color: string) => Promise<void>
   updateProjectTag: (id: string, data: { name?: string; color?: string }) => Promise<void>
   deleteProjectTag: (id: string) => Promise<void>
@@ -216,6 +217,21 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setAgentStatus: (taskId, status) => {
     set((s) => ({
       tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, agentStatus: status } : t)),
+    }))
+  },
+
+  setTaskWorktreeStatus: (taskId, status, path, error) => {
+    set((s) => ({
+      tasks: s.tasks.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              worktreeStatus: status,
+              worktreePath: path ?? undefined,
+              worktreeError: error ?? undefined,
+            }
+          : t,
+      ),
     }))
   },
 

@@ -84,6 +84,10 @@ export interface Task {
   customAgentCommand?: string
   tags: string[]
   subtasks?: Subtask[]
+  worktreeBranch?: string
+  worktreePath?: string
+  worktreeStatus?: 'none' | 'creating' | 'installing' | 'created' | 'failed'
+  worktreeError?: string
   createdAt: number
   updatedAt: number
 }

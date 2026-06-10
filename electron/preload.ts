@@ -70,6 +70,10 @@ const api = {
     ipcRenderer.invoke('git:checkoutBranch', dirPath, branchName),
   gitCreateBranch: (dirPath: string, branchName: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('git:createBranch', dirPath, branchName),
+  gitCreateWorktree: (dirPath: string, taskId: string, branchName: string): Promise<{ success: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke('git:createWorktree', dirPath, taskId, branchName),
+  gitRemoveWorktree: (dirPath: string, taskId: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('git:removeWorktree', dirPath, taskId),
 
   getColumns: (projectPath?: string): Promise<Column[]> => ipcRenderer.invoke('column:list', projectPath),
   createColumn: (data: { title: string; order: number; color?: string; projectPath?: string }): Promise<Column> =>
@@ -208,6 +212,21 @@ const api = {
       ipcRenderer.removeListener('project:git-changed', handler)
     } else {
       ipcRenderer.removeAllListeners('project:git-changed')
+    }
+  },
+  onTaskWorktreeStatus: (callback: (data: { taskId: string; status: any; path: string | null; error?: string }) => void): IpcHandler => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { taskId: string; status: any; path: string | null; error?: string },
+    ): void => callback(data)
+    ipcRenderer.on('task:worktree-status', handler)
+    return handler
+  },
+  removeTaskWorktreeStatusListener: (handler?: IpcHandler): void => {
+    if (handler) {
+      ipcRenderer.removeListener('task:worktree-status', handler)
+    } else {
+      ipcRenderer.removeAllListeners('task:worktree-status')
     }
   },
   log: {

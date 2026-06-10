@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { Task, AgentType, AgentCliConfig, SessionMode } from '@shared/types'
+import { toast } from 'sonner'
 import {
   Dialog,
   DialogContent,
@@ -65,6 +66,15 @@ export function TaskModal({ open, onOpenChange, task, onSave }: TaskModalProps):
   const [sessionArg, setSessionArg] = useState('--resume')
   const [sessionEnvVar, setSessionEnvVar] = useState('')
 
+  // Git Worktree State
+  const [gitBranches, setGitBranches] = useState<string[]>([])
+  const [worktreeBranch, setWorktreeBranch] = useState('')
+  const [worktreeStatus, setWorktreeStatus] = useState<Task['worktreeStatus']>('none')
+  const [worktreePath, setWorktreePath] = useState('')
+  const [worktreeError, setWorktreeError] = useState('')
+  const [creatingWorktree, setCreatingWorktree] = useState(false)
+  const [removingWorktree, setRemovingWorktree] = useState(false)
+
   useEffect(() => {
     if (open) {
       setTitle(task?.title ?? '')
@@ -93,8 +103,78 @@ export function TaskModal({ open, onOpenChange, task, onSave }: TaskModalProps):
         setSessionArg('--resume')
         setSessionEnvVar('')
       }
+
+      // Sync Git Worktree State
+      setWorktreeBranch(task?.worktreeBranch ?? '')
+      setWorktreeStatus(task?.worktreeStatus ?? 'none')
+      setWorktreePath(task?.worktreePath ?? '')
+      setWorktreeError(task?.worktreeError ?? '')
     }
   }, [open, task, settings.defaultAgentType])
+
+  // Sync Git Worktree State reactively if task updates in the store
+  useEffect(() => {
+    if (task && open) {
+      setWorktreeBranch((prev) => (creatingWorktree ? prev : task.worktreeBranch ?? ''))
+      setWorktreeStatus(task.worktreeStatus ?? 'none')
+      setWorktreePath(task.worktreePath ?? '')
+      setWorktreeError(task.worktreeError ?? '')
+    }
+  }, [task, open])
+
+  // Fetch Git Branches
+  useEffect(() => {
+    if (open && currentProject) {
+      window.electronAPI.gitGetBranches(currentProject).then((branches) => {
+        setGitBranches(branches)
+      }).catch((err) => {
+        console.error('Failed to get git branches:', err)
+      })
+    }
+  }, [open, currentProject])
+
+  async function handleCreateWorktree() {
+    if (!currentProject || !task || !worktreeBranch.trim()) return
+    setCreatingWorktree(true)
+    try {
+      const res = await window.electronAPI.gitCreateWorktree(
+        currentProject,
+        task.id,
+        worktreeBranch.trim()
+      )
+      if (!res.success) {
+        toast.error('Failed to create worktree: ' + res.error)
+      } else {
+        toast.success('Git worktree creation initiated!')
+        setWorktreeStatus('installing')
+      }
+    } catch (err: any) {
+      toast.error('Error: ' + (err.message || String(err)))
+    } finally {
+      setCreatingWorktree(false)
+    }
+  }
+
+  async function handleRemoveWorktree() {
+    if (!currentProject || !task) return
+    if (!confirm('Are you sure you want to remove the Git Worktree for this task? This will force delete any changes inside the worktree folder.')) return
+    setRemovingWorktree(true)
+    try {
+      const res = await window.electronAPI.gitRemoveWorktree(currentProject, task.id)
+      if (!res.success) {
+        toast.error('Failed to remove worktree: ' + res.error)
+      } else {
+        toast.success('Git worktree removed successfully.')
+        setWorktreeStatus('none')
+        setWorktreePath('')
+        setWorktreeBranch('')
+      }
+    } catch (err: any) {
+      toast.error('Error: ' + (err.message || String(err)))
+    } finally {
+      setRemovingWorktree(false)
+    }
+  }
 
   const isValid = title.trim().length > 0
 
@@ -220,6 +300,118 @@ export function TaskModal({ open, onOpenChange, task, onSave }: TaskModalProps):
           {currentProject && (
             <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
               Project: <span className="font-medium text-foreground">{currentProject}</span>
+            </div>
+          )}
+
+          {/* Git Worktree Section */}
+          {currentProject && task && (
+            <div className="space-y-2.5 rounded-xl border border-border/30 p-3 bg-muted/10">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-foreground uppercase tracking-wide">Git Worktree</span>
+                {worktreeStatus && worktreeStatus !== 'none' && (
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                    worktreeStatus === 'created' 
+                      ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                      : worktreeStatus === 'failed'
+                        ? 'bg-red-500/15 text-red-600 dark:text-red-400'
+                        : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 animate-pulse'
+                  }`}>
+                    {worktreeStatus}
+                  </span>
+                )}
+              </div>
+
+              {worktreeStatus === 'none' && (
+                <div className="space-y-3">
+                  <p className="text-[11px] text-muted-foreground">
+                    Create a dedicated Git Worktree to run the AI agent for this task on a separate branch.
+                  </p>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      Branch Name
+                    </label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          list="modal-git-branches"
+                          value={worktreeBranch}
+                          onChange={(e) => setWorktreeBranch(e.target.value)}
+                          placeholder="e.g. feat/login-ui"
+                          className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-2xs transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                        <datalist id="modal-git-branches">
+                          {gitBranches.map((b) => (
+                            <option key={b} value={b} />
+                          ))}
+                        </datalist>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={!worktreeBranch.trim() || creatingWorktree}
+                        onClick={handleCreateWorktree}
+                        className="h-8 text-xs px-3"
+                      >
+                        {creatingWorktree ? 'Setting up...' : 'Setup Worktree'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {(worktreeStatus === 'creating' || worktreeStatus === 'installing') && (
+                <div className="flex items-center gap-3 py-2 text-xs text-muted-foreground">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  <div>
+                    {worktreeStatus === 'creating' 
+                      ? 'Creating git worktree...' 
+                      : 'Installing project dependencies in the background...'}
+                  </div>
+                </div>
+              )}
+
+              {worktreeStatus === 'created' && (
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between items-center bg-background p-2 rounded-lg border">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold truncate">Branch: <span className="font-mono text-primary font-bold">{worktreeBranch}</span></div>
+                      <div className="text-[10px] text-muted-foreground truncate mt-0.5">Path: <span className="font-mono">{worktreePath}</span></div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleRemoveWorktree}
+                      disabled={removingWorktree}
+                      className="h-7 text-[10px] font-extrabold uppercase tracking-wide ml-2 shrink-0 cursor-pointer"
+                    >
+                      {removingWorktree ? 'Removing...' : 'Remove'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {worktreeStatus === 'failed' && (
+                <div className="space-y-3">
+                  <div className="bg-red-500/10 border border-red-500/25 p-2.5 rounded-lg text-[11px] text-red-500">
+                    <div className="font-semibold uppercase tracking-wider text-[10px] mb-1">Setup Failed</div>
+                    <div className="font-mono break-all">{worktreeError}</div>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRemoveWorktree}
+                      disabled={removingWorktree}
+                      className="h-7 text-[10px] font-semibold cursor-pointer"
+                    >
+                      Reset Worktree Settings
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

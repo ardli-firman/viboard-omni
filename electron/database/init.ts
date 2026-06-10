@@ -115,12 +115,30 @@ const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    version: 8,
+    description: 'Add worktree columns to tasks table',
+    run: (db) => {
+      if (!columnExists(db, 'tasks', 'worktree_branch')) {
+        db.exec('ALTER TABLE tasks ADD COLUMN worktree_branch TEXT DEFAULT NULL')
+      }
+      if (!columnExists(db, 'tasks', 'worktree_path')) {
+        db.exec('ALTER TABLE tasks ADD COLUMN worktree_path TEXT DEFAULT NULL')
+      }
+      if (!columnExists(db, 'tasks', 'worktree_status')) {
+        db.exec("ALTER TABLE tasks ADD COLUMN worktree_status TEXT DEFAULT 'none'")
+      }
+      if (!columnExists(db, 'tasks', 'worktree_error')) {
+        db.exec('ALTER TABLE tasks ADD COLUMN worktree_error TEXT DEFAULT NULL')
+      }
+    },
+  },
 ]
 
 function migrateSchema(): void {
   const versionRow = db.prepare('PRAGMA user_version').get() as { user_version: number }
   const currentVersion = versionRow ? versionRow.user_version : 0
-  const latestVersion = 7
+  const latestVersion = 8
 
   if (currentVersion >= latestVersion) {
     return
@@ -174,6 +192,10 @@ function createTables(): void {
       agent_config TEXT DEFAULT NULL,
       tags TEXT NOT NULL DEFAULT '[]',
       subtasks TEXT NOT NULL DEFAULT '[]',
+      worktree_branch TEXT DEFAULT NULL,
+      worktree_path TEXT DEFAULT NULL,
+      worktree_status TEXT DEFAULT 'none',
+      worktree_error TEXT DEFAULT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (column_id) REFERENCES columns(id) ON DELETE CASCADE

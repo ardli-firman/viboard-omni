@@ -271,7 +271,14 @@ export function registerTerminalHandlers(): void {
 
       await evictOldestIfNeeded()
 
-      const cwd = projectPath && existsSync(projectPath) ? projectPath : process.cwd()
+      const db = getDatabase()
+      const taskRow = db.prepare("SELECT worktree_path, worktree_status FROM tasks WHERE id = ?").get(taskId) as { worktree_path: string | null, worktree_status: string | null } | undefined
+
+      let cwd = projectPath && existsSync(projectPath) ? projectPath : process.cwd()
+      if (taskRow && taskRow.worktree_status === 'created' && taskRow.worktree_path && existsSync(taskRow.worktree_path)) {
+        cwd = taskRow.worktree_path
+        console.log(`[agent:spawn] Task ${taskId} has active worktree. Spawning PTY in cwd: ${cwd}`)
+      }
 
       // Safety: if the agentType is not in the registry (e.g. legacy 'pi-agent' rows
       // that weren't caught by the DB migration), fall back to 'oh-my-pi'.

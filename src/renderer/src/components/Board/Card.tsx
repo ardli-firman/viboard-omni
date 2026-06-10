@@ -4,7 +4,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Card, CardContent } from '../ui/card'
 import { Button } from '../ui/button'
-import { Pencil, Trash2, Calendar, Clock, CheckSquare, ChevronDown, ChevronUp, MoreVertical, Plus, Check } from 'lucide-react'
+import { Pencil, Trash2, Calendar, Clock, CheckSquare, ChevronDown, ChevronUp, MoreVertical, Plus, Check, GitBranch } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -443,6 +443,21 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
                 <div className="space-y-1.5 pt-1">
                   {/* Row 1: Agent badge + Tags + Subtask count */}
                   <div className="flex flex-wrap items-center gap-1">
+                    {task.worktreeBranch && task.worktreeStatus && task.worktreeStatus !== 'none' && (
+                      <span 
+                        className={`inline-flex h-5 items-center gap-1 rounded-md border px-1.5 text-[10px] font-semibold select-none ${
+                          task.worktreeStatus === 'created'
+                            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                            : task.worktreeStatus === 'failed'
+                              ? 'border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400'
+                              : 'border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400 animate-pulse'
+                        }`}
+                        title={`Git Worktree: ${task.worktreeBranch} (${task.worktreeStatus})`}
+                      >
+                        <GitBranch className={`w-3 h-3 shrink-0 ${task.worktreeStatus === 'installing' || task.worktreeStatus === 'creating' ? 'animate-bounce' : ''}`} />
+                        <span className="truncate max-w-[100px]">{task.worktreeBranch}</span>
+                      </span>
+                    )}
                     {realStatus !== 'idle' && (
                       <span className="inline-flex h-5 items-center gap-1 rounded-md border border-border/30 bg-muted/40 px-1.5 text-[10px] font-semibold text-muted-foreground/80 select-none">
                         <AgentIcon type={task.agentType} className="w-3.5 h-3.5 shrink-0" />
@@ -702,6 +717,45 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
           </div>
 
           <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            {task.worktreeBranch && task.worktreeStatus && task.worktreeStatus !== 'none' && (
+              <Tooltip delayDuration={200}>
+                <TooltipTrigger asChild>
+                  <span 
+                    className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[9px] font-bold tracking-wide uppercase shadow-xs cursor-help select-none ${
+                      task.worktreeStatus === 'created'
+                        ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                        : task.worktreeStatus === 'failed'
+                          ? 'border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400'
+                          : 'border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                    }`}
+                  >
+                    <GitBranch className={`w-3.5 h-3.5 mr-1 shrink-0 ${task.worktreeStatus === 'installing' || task.worktreeStatus === 'creating' ? 'animate-pulse' : ''}`} />
+                    <span>{task.worktreeBranch}</span>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="bg-popover text-popover-foreground border border-border shadow-md px-3 py-2 rounded-xl backdrop-blur-md">
+                  <div className="flex flex-col gap-1 text-[11px] font-medium leading-none">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <GitBranch className="w-4 h-4 shrink-0" />
+                      <span>Git Worktree Branch</span>
+                    </div>
+                    <div className="text-muted-foreground mt-0.5">
+                      Status: <span className="font-semibold uppercase text-primary">{task.worktreeStatus}</span>
+                    </div>
+                    {task.worktreePath && (
+                      <div className="text-[10px] text-muted-foreground mt-0.5 font-mono max-w-xs break-all">
+                        {task.worktreePath}
+                      </div>
+                    )}
+                    {task.worktreeError && (
+                      <div className="text-[10px] text-red-500 mt-1 font-mono max-w-xs break-all border-t border-border/20 pt-1">
+                        Error: {task.worktreeError}
+                      </div>
+                    )}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            )}
             {task.agentType && (
               <Tooltip delayDuration={200}>
                 <TooltipTrigger asChild>

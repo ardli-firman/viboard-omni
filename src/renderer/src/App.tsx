@@ -17,7 +17,7 @@ import { TooltipProvider } from './components/ui/tooltip'
 function App(): React.ReactElement {
   const { init } = useThemeStore()
   const { panelOpen, activeTaskId, setStatus, setActivity } = useTerminalStore()
-  const { currentProject, loadProjects, setAgentStatus } = useProjectStore()
+  const { currentProject, loadProjects, setAgentStatus, setTaskWorktreeStatus } = useProjectStore()
   const { loadSettings } = useSettingsStore()
 
   useEffect(() => {
@@ -51,6 +51,18 @@ function App(): React.ReactElement {
       window.electronAPI.removeAgentActivityListener(ipcHandler)
     }
   }, [setActivity])
+
+  // Bridge task worktree status updates into the project store.
+  useEffect(() => {
+    const ipcHandler = window.electronAPI.onTaskWorktreeStatus(
+      (data: { taskId: string; status: any; path: string | null; error?: string }): void => {
+        setTaskWorktreeStatus(data.taskId, data.status, data.path, data.error)
+      },
+    )
+    return () => {
+      window.electronAPI.removeTaskWorktreeStatusListener(ipcHandler)
+    }
+  }, [setTaskWorktreeStatus])
 
   return (
     <TooltipProvider>

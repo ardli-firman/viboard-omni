@@ -1,7 +1,9 @@
-import { ipcMain } from 'electron'
+import { ipcMain, BrowserWindow } from 'electron'
 import { exec, execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import * as path from 'node:path'
+import { existsSync, readFileSync, appendFileSync } from 'node:fs'
+import { getDatabase } from '../database/init'
 
 const execAsync = promisify(exec)
 const execFileAsync = promisify(execFile)
@@ -205,5 +207,142 @@ export function registerGitHandlers(): void {
       return res.success ? { success: true } : { success: false, error: res.stderr }
     },
   )
+
+  ipcMain.handle(
+    'git:createWorktree',
+    async (
+      _event: unknown,
+      dirPath: string,
+      taskId: string,
+      branchName: string,
+    ): Promise<{ success: boolean; path?: string; error?: string }> => {
+      try {
+        const worktreePath = path.join(dirPath, '.viboard', 'worktrees', taskId).replace(/\\/g, '/')
+        
+        // Ensure .viboard/ is added to the project's .gitignore
+        ensureGitignore(dirPath)
+
+        // 1. Check if branch exists
+        const { stdout: branchesOut } = await execFileAsync('git', ['branch', '--list', branchName], { cwd: dirPath })
+        const branchExists = branchesOut.trim().length > 0
+
+        // 2. Add worktree
+        const args = ['worktree', 'add', worktreePath]
+        if (!branchExists) {
+          args.push('-b', branchName)
+        } else {
+          args.push(branchName)
+        }
+
+        const res = await runGit(dirPath, args)
+        if (!res.success) {
+          return { success: false, error: res.stderr }
+        }
+
+        // Update DB status to 'installing'
+        const db = getDatabase()
+        db.prepare("UPDATE tasks SET worktree_path = ?, worktree_branch = ?, worktree_status = 'installing', worktree_error = NULL, updated_at = ? WHERE id = ?")
+          .run(worktreePath, branchName, Date.now(), taskId)
+
+        broadcast('task:worktree-status', { taskId, status: 'installing', path: worktreePath })
+
+        // 3. Asynchronously run dependency installation
+        runDependencyInstall(worktreePath, taskId).catch((err) => {
+          console.error(`[git:worktree] dependency installation failed for task ${taskId}:`, err)
+        })
+
+        return { success: true, path: worktreePath }
+      } catch (err: any) {
+        return { success: false, error: err.message || String(err) }
+      }
+    },
+  )
+
+  ipcMain.handle(
+    'git:removeWorktree',
+    async (_event: unknown, dirPath: string, taskId: string): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const worktreePath = path.join(dirPath, '.viboard', 'worktrees', taskId).replace(/\\/g, '/')
+        
+        // Remove worktree using git worktree remove --force
+        const res = await runGit(dirPath, ['worktree', 'remove', '--force', worktreePath])
+        // Prune worktrees to clean metadata
+        await runGit(dirPath, ['worktree', 'prune'])
+
+        // Update DB
+        const db = getDatabase()
+        db.prepare("UPDATE tasks SET worktree_path = NULL, worktree_branch = NULL, worktree_status = 'none', worktree_error = NULL, updated_at = ? WHERE id = ?")
+          .run(Date.now(), taskId)
+
+        broadcast('task:worktree-status', { taskId, status: 'none', path: null })
+
+        return { success: true }
+      } catch (err: any) {
+        return { success: false, error: err.message || String(err) }
+      }
+    },
+  )
+}
+
+function broadcast(channel: string, payload: unknown): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) {
+      win.webContents.send(channel, payload)
+    }
+  }
+}
+
+async function runDependencyInstall(worktreePath: string, taskId: string): Promise<void> {
+  const hasPnpm = existsSync(path.join(worktreePath, 'pnpm-lock.yaml'))
+  const hasYarn = existsSync(path.join(worktreePath, 'yarn.lock'))
+  const hasPackageLock = existsSync(path.join(worktreePath, 'package-lock.json'))
+
+  let cmd = 'npm install'
+  if (hasPnpm) {
+    cmd = 'pnpm install'
+  } else if (hasYarn) {
+    cmd = 'yarn install'
+  } else if (hasPackageLock) {
+    cmd = 'npm install'
+  }
+
+  console.log(`[git:worktree] running dependency install for task ${taskId}: ${cmd} in ${worktreePath}`)
+
+  return new Promise<void>((resolve, reject) => {
+    exec(cmd, { cwd: worktreePath }, (error, _stdout, _stderr) => {
+      const db = getDatabase()
+      const now = Date.now()
+
+      if (error) {
+        console.error(`[git:worktree] install failed for task ${taskId}:`, error.message)
+        db.prepare("UPDATE tasks SET worktree_status = 'failed', worktree_error = ?, updated_at = ? WHERE id = ?")
+          .run(error.message, now, taskId)
+        broadcast('task:worktree-status', { taskId, status: 'failed', error: error.message })
+        reject(error)
+      } else {
+        console.log(`[git:worktree] install completed successfully for task ${taskId}`)
+        db.prepare("UPDATE tasks SET worktree_status = 'created', worktree_error = NULL, updated_at = ? WHERE id = ?")
+          .run(now, taskId)
+        broadcast('task:worktree-status', { taskId, status: 'created', path: worktreePath })
+        resolve()
+      }
+    })
+  })
+}
+
+function ensureGitignore(projectPath: string): void {
+  try {
+    const gitignorePath = path.join(projectPath, '.gitignore')
+    if (existsSync(gitignorePath)) {
+      const content = readFileSync(gitignorePath, 'utf8')
+      if (!content.includes('.viboard/')) {
+        const lineToAppend = content.endsWith('\n') ? '.viboard/\n' : '\n.viboard/\n'
+        appendFileSync(gitignorePath, lineToAppend)
+        console.log('[git:worktree] Added .viboard/ to .gitignore')
+      }
+    }
+  } catch (err) {
+    console.error('[git:worktree] Failed to update .gitignore:', err)
+  }
 }
 
