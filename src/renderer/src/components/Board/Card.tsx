@@ -36,8 +36,8 @@ interface KanbanCardProps {
 interface StatusDisplay {
   label: string
   className: string
-  lineClass: string | null
-  ringClass: string | null
+  indicatorClass: string
+  bgTintClass: string
 }
 
 const getCardStatusDisplay = (status: AgentStatus, activity: AgentActivity): StatusDisplay => {
@@ -47,23 +47,23 @@ const getCardStatusDisplay = (status: AgentStatus, activity: AgentActivity): Sta
         return {
           label: 'completed',
           className: 'bg-primary/10 text-primary border-primary/30',
-          lineClass: 'bg-primary',
-          ringClass: 'ring-1 ring-primary/20',
+          indicatorClass: 'bg-primary/80 group-hover/card:bg-primary',
+          bgTintClass: 'bg-primary/5 group-hover/card:bg-primary/10',
         }
       case 'error':
         return {
           label: 'error',
           className: 'bg-destructive/10 text-destructive border-destructive/30',
-          lineClass: 'bg-destructive',
-          ringClass: 'ring-1 ring-destructive/20',
+          indicatorClass: 'bg-destructive/80 group-hover/card:bg-destructive',
+          bgTintClass: 'bg-destructive/5 group-hover/card:bg-destructive/10',
         }
       case 'idle':
       default:
         return {
           label: 'idle',
           className: 'bg-muted/60 text-muted-foreground border-muted-foreground/20',
-          lineClass: null,
-          ringClass: null,
+          indicatorClass: 'bg-transparent group-hover/card:bg-border/40',
+          bgTintClass: 'bg-transparent group-hover/card:bg-card/50',
         }
     }
   }
@@ -74,30 +74,30 @@ const getCardStatusDisplay = (status: AgentStatus, activity: AgentActivity): Sta
       return {
         label: 'thinking',
         className: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30 animate-pulse',
-        lineClass: 'bg-indigo-500 animate-pulse',
-        ringClass: 'ring-1 ring-indigo-500/30',
+        indicatorClass: 'bg-indigo-500/80 group-hover/card:bg-indigo-500 animate-pulse',
+        bgTintClass: 'bg-indigo-500/5 group-hover/card:bg-indigo-500/10 animate-pulse',
       }
     case 'tool_use':
       return {
         label: 'running tool',
         className: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30 animate-pulse',
-        lineClass: 'bg-purple-500 animate-pulse',
-        ringClass: 'ring-1 ring-purple-500/30',
+        indicatorClass: 'bg-purple-500/80 group-hover/card:bg-purple-500 animate-pulse',
+        bgTintClass: 'bg-purple-500/5 group-hover/card:bg-purple-500/10 animate-pulse',
       }
     case 'responding':
       return {
         label: 'responding',
         className: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 animate-pulse',
-        lineClass: 'bg-emerald-500 animate-pulse',
-        ringClass: 'ring-1 ring-emerald-500/30',
+        indicatorClass: 'bg-emerald-500/80 group-hover/card:bg-emerald-500 animate-pulse',
+        bgTintClass: 'bg-emerald-500/5 group-hover/card:bg-emerald-500/10 animate-pulse',
       }
     case 'waiting':
     default:
       return {
         label: 'waiting',
         className: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30',
-        lineClass: 'bg-amber-500',
-        ringClass: 'ring-1 ring-amber-500/30',
+        indicatorClass: 'bg-amber-500/80 group-hover/card:bg-amber-500',
+        bgTintClass: 'bg-amber-500/5 group-hover/card:bg-amber-500/10',
       }
   }
 }
@@ -412,9 +412,9 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
     <Card
       ref={setNodeRef}
       style={style}
-      className={`group/card relative cursor-grab rounded-2xl border border-border/40 bg-card p-0 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_8px_30px_rgb(60,110,71,0.08)] active:cursor-grabbing ${
+      className={`group/card relative cursor-grab rounded-2xl border border-border/40 bg-card p-0 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgb(60,110,71,0.08)] active:cursor-grabbing overflow-hidden shrink-0 ${
         isDragging ? 'ring-2 ring-primary/50 shadow-lg' : ''
-      } ${display.ringClass ?? ''}`}
+      }`}
       {...attributes}
       {...listeners}
       onClick={() => {
@@ -423,17 +423,16 @@ export function KanbanCard({ task, onEdit, onDelete, onOpenChat }: KanbanCardPro
         }
       }}
     >
-      <CardContent className="space-y-3.5 p-4">
+      {/* Background tint */}
+      <div className={`absolute inset-0 pointer-events-none transition-colors duration-300 ${display.bgTintClass}`} />
+
+      {/* Left indicator strip */}
+      <div className={`absolute left-0 top-0 bottom-0 w-[4px] pointer-events-none transition-colors duration-300 ${display.indicatorClass}`} />
+
+      <CardContent className="relative z-10 space-y-3.5 p-4">
         {/* Row 1: Title & Actions */}
         <div className="flex items-start justify-between gap-3 min-h-6">
           <div className="flex-1 flex items-start gap-2 min-w-0">
-            {/* Status indicator vertical stripe */}
-            {display.lineClass && (
-              <div 
-                className={`w-1 h-5 shrink-0 rounded-full ${display.lineClass} mt-0.5`} 
-                title={`Agent status: ${display.label}`}
-              />
-            )}
             <div className="flex-1 flex flex-col gap-1.5 min-w-0">
               <h4 className="text-sm font-bold leading-snug tracking-tight text-foreground transition-colors group-hover/card:text-primary">
                 {task.title}
