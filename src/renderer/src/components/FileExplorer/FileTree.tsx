@@ -12,6 +12,7 @@ function TreeNode({ item, depth }: { item: FileTreeItem; depth: number }): React
   const toggleExpand = useFileExplorerStore((s) => s.toggleExpand)
   const openFile = useFileExplorerStore((s) => s.openFile)
   const gitStatus = useFileExplorerStore((s) => s.gitStatus)
+  const gitIgnored = useFileExplorerStore((s) => s.gitIgnored)
 
   const isExpanded = expandedPaths.has(item.path)
   const isActive = activeFilePath === item.path
@@ -21,15 +22,50 @@ function TreeNode({ item, depth }: { item: FileTreeItem; depth: number }): React
   const isModified = status?.includes('M')
   const isAdded = status?.includes('A') || status?.includes('?')
 
+  // For directories, propagate git status from descendants
+  let dirModified = false
+  let dirAdded = false
+  if (item.isDirectory && !status) {
+    const prefix = item.relativePath + '/'
+    for (const [k, v] of Object.entries(gitStatus)) {
+      if (k.startsWith(prefix)) {
+        if (v.includes('M')) dirModified = true
+        if (v.includes('A') || v.includes('?')) dirAdded = true
+      }
+    }
+  }
+
+  const isIgnored = !item.isDirectory && gitIgnored.has(item.relativePath)
+  let dirIgnored = false
+  if (item.isDirectory && gitIgnored.size > 0) {
+    const prefix = item.relativePath + '/'
+    for (const k of gitIgnored) {
+      if (k.startsWith(prefix)) {
+        dirIgnored = true
+        break
+      }
+    }
+  }
+
+  const isDimmed = isIgnored || dirIgnored
+
   const Icon = getFileIcon(item.name, item.extension, item.isDirectory, isExpanded)
   const iconColor = item.isDirectory ? 'text-sky-400' : getFileIconColor(item.extension)
-  const textColor = isModified ? 'text-[#e2c08d]' : isAdded ? 'text-[#73c991]' : isActive ? 'text-accent-foreground' : 'text-foreground'
+  const textColor = isActive
+    ? 'text-primary'
+    : isModified || dirModified
+      ? 'text-amber-600 dark:text-amber-400'
+      : isAdded || dirAdded
+        ? 'text-emerald-600 dark:text-emerald-400'
+        : isDimmed
+          ? 'text-muted-foreground/30'
+          : 'text-muted-foreground/80'
 
   // Indent: each level = 14px (icon column at fixed offset, name follows)
-  const baseIndent = 8
+  const baseIndent = 18
   const indentPerLevel = 14
   const nameLeft = baseIndent + depth * indentPerLevel
-  const chevronLeft = depth === 0 ? 0 : nameLeft - 14
+  const chevronLeft = nameLeft - 14
 
   function handleClick(): void {
     if (item.isDirectory) {
@@ -43,18 +79,18 @@ function TreeNode({ item, depth }: { item: FileTreeItem; depth: number }): React
     <div className="relative">
       <button
         onClick={handleClick}
-        className={`group relative flex h-[22px] w-full items-center pr-2 text-left text-[13px] leading-[22px] transition-colors ${
+        className={`group relative flex h-7.5 w-full items-center pr-3 text-left text-xs transition-all ${textColor} ${
           isActive
-            ? 'bg-accent'
-            : 'hover:bg-accent/50'
-        } ${textColor}`}
+            ? 'bg-primary/10 border-r-2 border-primary font-bold'
+            : 'hover:bg-primary/5 hover:text-foreground font-medium'
+        } ${isDimmed ? 'opacity-40' : ''}`}
         style={{ paddingLeft: nameLeft }}
         title={item.relativePath}
       >
         {/* Chevron for directories */}
         {item.isDirectory && (
           <span
-            className="absolute inline-flex h-[22px] w-[14px] items-center justify-center text-muted-foreground/70"
+            className="absolute inline-flex h-7.5 w-[14px] items-center justify-center text-muted-foreground/50 group-hover:text-primary transition-colors"
             style={{ left: chevronLeft }}
           >
             {isExpanded ? (
@@ -64,19 +100,22 @@ function TreeNode({ item, depth }: { item: FileTreeItem; depth: number }): React
             )}
           </span>
         )}
-        <Icon className={`h-[15px] w-[15px] shrink-0 ${iconColor}`} />
-        <span className="ml-1.5 truncate">{item.name}</span>
+        <Icon className={`h-4 w-4 shrink-0 ${iconColor} transition-transform group-hover:scale-110 ${isDimmed ? 'opacity-40' : ''}`} />
+        <span className="ml-2 truncate">{item.name}</span>
         {status && !item.isDirectory && (
-          <span className={`ml-auto text-[10px] font-bold ${isModified ? 'text-[#e2c08d]' : 'text-[#73c991]'}`}>
-            {isModified ? 'M' : isAdded ? 'U' : ''}
+          <span className={`ml-auto text-[9px] font-extrabold px-1 rounded-sm ${isModified ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'}`}>
+            {isModified ? 'M' : isAdded ? 'A' : ''}
           </span>
         )}
+        {(dirModified || dirAdded) && (
+          <span className={`ml-auto h-1.5 w-1.5 rounded-full ${dirModified ? 'bg-amber-500/70' : 'bg-emerald-500/70'}`} />
+        )}
         {isOpen && !item.isDirectory && !status && (
-          <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary/70" />
+          <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary/60" />
         )}
       </button>
       {item.isDirectory && isExpanded && item.children && (
-        <div>
+        <div className="mt-0.5">
           {item.children.map((child) => (
             <TreeNode key={child.path} item={child} depth={depth + 1} />
           ))}
@@ -90,35 +129,33 @@ function TreeHeader(): ReactElement {
   const rootPath = useFileExplorerStore((s) => s.rootPath)
   const loadTree = useFileExplorerStore((s) => s.loadTree)
   const collapseAll = () => {
-    // Collapse all by clearing expanded paths then re-adding root
     const state = useFileExplorerStore.getState()
     useFileExplorerStore.setState({ expandedPaths: new Set() })
-    // Re-trigger a no-op to ensure subscribers update
     void state
   }
 
   const iconH =
-    'inline-flex h-[20px] w-[20px] items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground opacity-0 group-hover:opacity-100'
+    'inline-flex h-6 w-6 items-center justify-center rounded-lg text-muted-foreground/60 transition-all hover:bg-primary/10 hover:text-primary active:scale-90 opacity-0 group-hover:opacity-100'
 
   if (!rootPath) return <></>
 
   return (
-    <div className="group flex h-[26px] items-center justify-between px-1">
-      <span className="select-none truncate px-1 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground/80">
+    <div className="group flex h-8 items-center justify-between border-b border-border/10 bg-background/10 px-3 py-1">
+      <span className="select-none truncate text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
         {basename(rootPath)}
       </span>
-      <div className="flex items-center gap-0">
+      <div className="flex items-center gap-0.5">
         <button onClick={collapseAll} className={iconH} title="Collapse Folders">
-          <span className="text-[14px] leading-none">⋯</span>
+          <span className="text-xs leading-none font-bold">⋯</span>
         </button>
         <button onClick={() => void loadTree(rootPath)} className={iconH} title="Refresh">
-          <RotateCw className="h-[13px] w-[13px]" />
+          <RotateCw className="h-3.5 w-3.5" />
         </button>
         <button className={iconH} title="New File">
-          <FilePlus className="h-[13px] w-[13px]" />
+          <FilePlus className="h-3.5 w-3.5" />
         </button>
         <button className={iconH} title="New Folder">
-          <FolderPlus className="h-[13px] w-[13px]" />
+          <FolderPlus className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>

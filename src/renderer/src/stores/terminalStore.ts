@@ -1,212 +1,67 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { AgentStatus } from '@shared/types'
+import type { AgentStatus, AgentActivity } from '@shared/types'
 
-export type AgentBlock =
-  | { kind: 'text'; text: string }
-  | { kind: 'thinking'; text: string }
-  | { kind: 'tool'; name: string; input: string; output: string; status: 'pending' | 'running' | 'done' | 'error' }
-
-export interface AgentMessage {
-  id: string
-  role: 'user' | 'agent'
-  blocks: AgentBlock[]
-  prompt?: string
-  createdAt: number
-  done: boolean
-  errorText?: string
-}
-
-interface AgentChatState {
+interface TerminalState {
   activeTaskId: string | null
   panelOpen: boolean
-  threads: Record<string, AgentMessage[]>
   status: Record<string, AgentStatus>
-  sessionId: Record<string, string | null>
+  activity: Record<string, AgentActivity>
   panelHeight: number
 
   openPanel: (taskId: string) => void
   closePanel: () => void
-  appendUserMessage: (taskId: string, message: AgentMessage) => void
-  applyEvent: (taskId: string, promptId: number, raw: Record<string, unknown>) => void
-  finalizeMessage: (taskId: string, promptId: number, error?: string) => void
   setStatus: (taskId: string, status: AgentStatus) => void
-  setSessionId: (taskId: string, sessionId: string | null) => void
-  clearThread: (taskId: string) => void
+  setActivity: (taskId: string, activity: AgentActivity) => void
   setPanelHeight: (updater: number | ((prev: number) => number)) => void
+  /** Remove all non-running statuses to prevent the map from growing forever. */
+  clearCompletedStatuses: () => void
 }
 
-let messageCounter = 0
-export const nextMessageId = (): string => `msg_${Date.now()}_${++messageCounter}`
-
-function ensureBlock<K extends AgentBlock['kind']>(
-  message: AgentMessage,
-  kind: K,
-): Extract<AgentBlock, { kind: K }> {
-  const last = message.blocks[message.blocks.length - 1]
-  if (last && last.kind === kind) return last as Extract<AgentBlock, { kind: K }>
-  const created: AgentBlock =
-    kind === 'text'
-      ? { kind: 'text', text: '' }
-      : kind === 'thinking'
-        ? { kind: 'thinking', text: '' }
-        : { kind: 'tool', name: '', input: '', output: '', status: 'pending' }
-  message.blocks.push(created)
-  return created as Extract<AgentBlock, { kind: K }>
-}
-
-export const useTerminalStore = create<AgentChatState>()(
+export const useTerminalStore = create<TerminalState>()(
   persist(
     (set) => ({
       activeTaskId: null,
       panelOpen: false,
-      threads: {},
-  status: {},
-  sessionId: {},
-  panelHeight: 420,
+      status: {},
+      activity: {},
+      panelHeight: 420,
 
-  openPanel: (taskId) => set({ activeTaskId: taskId, panelOpen: true }),
+      openPanel: (taskId) => set({ activeTaskId: taskId, panelOpen: true }),
 
-  closePanel: () => set({ panelOpen: false }),
+      closePanel: () => set({ panelOpen: false }),
 
-  appendUserMessage: (taskId, message) =>
-    set((s) => ({
-      threads: { ...s.threads, [taskId]: [...(s.threads[taskId] ?? []), message] },
-    })),
+      setStatus: (taskId, status) => set((s) => ({ status: { ...s.status, [taskId]: status } })),
 
-  applyEvent: (taskId, promptId, raw) =>
-    set((s) => {
-      // Only process specific NDJSON event types from the agent output stream.
-      const type = raw.type as string | undefined
-      if (type !== 'session' && type !== 'session_cleared' && type !== 'message_start' && type !== 'message_update' && type !== 'message_end' && type !== 'turn_end' && type !== 'agent_end') {
-        return s
-      }
+      setActivity: (taskId, activity) => set((s) => ({ activity: { ...s.activity, [taskId]: activity } })),
 
-      const list = [...(s.threads[taskId] ?? [])]
+      setPanelHeight: (updater) =>
+        set((s) => {
+          const newHeight = typeof updater === 'function' ? updater(s.panelHeight) : updater
+          // Limit height between 200px and 1200px
+          return { panelHeight: Math.max(200, Math.min(newHeight, 1200)) }
+        }),
 
-      // Find or create the agent message for this prompt.
-      let message = list.find((m) => m.id === `prompt_${promptId}`)
-      if (!message) {
-        message = {
-          id: `prompt_${promptId}`,
-          role: 'agent',
-          blocks: [],
-          createdAt: Date.now(),
-          done: false,
-        }
-        list.push(message)
-      }
-
-      if (type === 'session') {
-        const sid = raw.id as string | undefined
-        if (sid) {
-          // Schedule async setSessionId to avoid dispatching inside zustand updater.
-          setTimeout(() => useTerminalStore.getState().setSessionId(taskId, sid), 0)
-        }
-        return { threads: { ...s.threads, [taskId]: list } }
-      }
-
-      if (type === 'session_cleared') {
-        setTimeout(() => useTerminalStore.getState().setSessionId(taskId, null), 0)
-        return { threads: { ...s.threads, [taskId]: list } }
-      }
-
-      if (type === 'message_start') {
-        return s
-      }
-
-      if (type === 'message_update') {
-        const evt = raw.assistantMessageEvent as
-          | { type?: string; contentIndex?: number; delta?: string; content?: string; partial?: { content?: { type?: string; name?: string; input?: unknown }[] } }
-          | undefined
-        if (!evt) return { threads: { ...s.threads, [taskId]: list } }
-
-        if (evt.type === 'thinking_start') {
-          if (!message.blocks.some((b) => b.kind === 'thinking')) {
-            ensureBlock(message, 'thinking')
+      clearCompletedStatuses: () =>
+        set((s) => {
+          const activeStatus: Record<string, AgentStatus> = {}
+          const activeActivity: Record<string, AgentActivity> = {}
+          for (const [taskId, status] of Object.entries(s.status)) {
+            if (status === 'running') {
+              activeStatus[taskId] = status
+              if (s.activity[taskId]) {
+                activeActivity[taskId] = s.activity[taskId]
+              }
+            }
           }
-        } else if (evt.type === 'thinking_delta' && typeof evt.delta === 'string') {
-          let block = message.blocks.find((b) => b.kind === 'thinking') as Extract<AgentBlock, { kind: 'thinking' }> | undefined
-          if (!block) block = ensureBlock(message, 'thinking')
-          block.text += evt.delta
-        } else if (evt.type === 'thinking_end') {
-          if (typeof evt.content === 'string') {
-            let block = message.blocks.find((b) => b.kind === 'thinking') as Extract<AgentBlock, { kind: 'thinking' }> | undefined
-            if (!block) block = ensureBlock(message, 'thinking')
-            block.text = evt.content
-          }
-        } else if (evt.type === 'text_start') {
-          ensureBlock(message, 'text')
-        } else if (evt.type === 'text_delta' && typeof evt.delta === 'string') {
-          let block = message.blocks.slice().reverse().find((b) => b.kind === 'text') as Extract<AgentBlock, { kind: 'text' }> | undefined
-          if (!block) block = ensureBlock(message, 'text')
-          block.text += evt.delta
-        } else if (evt.type === 'text_end') {
-          if (typeof evt.content === 'string') {
-            let block = message.blocks.slice().reverse().find((b) => b.kind === 'text') as Extract<AgentBlock, { kind: 'text' }> | undefined
-            if (!block) block = ensureBlock(message, 'text')
-            block.text = evt.content
-          }
-        } else if (evt.type === 'tool_use_start' || evt.type === 'tool_use_delta' || evt.type === 'tool_use_end') {
-          const block = ensureBlock(message, 'tool')
-          const partial = evt.partial?.content?.[evt.contentIndex ?? 0]
-          if (partial?.type === 'tool_use' && partial.name && !block.name) {
-            block.name = String(partial.name)
-          }
-          if (typeof evt.delta === 'string' && evt.type === 'tool_use_delta') {
-            block.input += evt.delta
-          }
-          if (evt.type === 'tool_use_end') {
-            block.status = 'running'
-          }
-        }
-        return { threads: { ...s.threads, [taskId]: list } }
-      }
-
-      if (type === 'message_end' || type === 'turn_end' || type === 'agent_end') {
-        message.done = true
-        return { threads: { ...s.threads, [taskId]: list } }
-      }
-
-      return { threads: { ...s.threads, [taskId]: list } }
+          return { status: activeStatus, activity: activeActivity }
+        }),
     }),
-
-  finalizeMessage: (taskId, promptId, error) =>
-    set((s) => {
-      const list = [...(s.threads[taskId] ?? [])]
-      const message = list.find((m) => m.id === `prompt_${promptId}`)
-      if (!message) return s
-      message.done = true
-      if (error) message.errorText = error
-      return { threads: { ...s.threads, [taskId]: list } }
-    }),
-
-  setStatus: (taskId, status) => set((s) => ({ status: { ...s.status, [taskId]: status } })),
-
-  setSessionId: (taskId, sessionId) =>
-    set((s) => ({ sessionId: { ...s.sessionId, [taskId]: sessionId } })),
-
-  clearThread: (taskId) =>
-    set((s) => {
-      const { [taskId]: _, ...rest } = s.threads
-      const { [taskId]: _s, ...restStatus } = s.status
-      const { [taskId]: _ss, ...restSession } = s.sessionId
-      return { threads: rest, status: restStatus, sessionId: restSession }
-    }),
-
-  setPanelHeight: (updater) =>
-    set((s) => {
-      const newHeight = typeof updater === 'function' ? updater(s.panelHeight) : updater
-      // Limit height between 200px and 1200px
-      return { panelHeight: Math.max(200, Math.min(newHeight, 1200)) }
-    }),
-  }),
-  {
-    name: 'viboard-terminal-store',
-    partialize: (state) => ({
-      threads: state.threads,
-      sessionId: state.sessionId,
-      panelHeight: state.panelHeight,
-    }),
-  }
-))
+    {
+      name: 'viboard-terminal-store',
+      partialize: (state) => ({
+        panelHeight: state.panelHeight,
+      }),
+    }
+  )
+)

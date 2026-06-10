@@ -10,50 +10,62 @@ import { ProjectPicker } from './components/ProjectPicker/ProjectPicker'
 import { useThemeStore } from './stores/themeStore'
 import { useTerminalStore } from './stores/terminalStore'
 import { useProjectStore } from './stores/projectStore'
+import { useSettingsStore } from './stores/settingsStore'
+import type { AgentActivity } from '@shared/types'
+import { TooltipProvider } from './components/ui/tooltip'
 
 function App(): React.ReactElement {
   const { init } = useThemeStore()
-  const { panelOpen, activeTaskId, applyEvent, finalizeMessage, setStatus } = useTerminalStore()
-  const { currentProject, loadProjects, setAgentStatus } = useProjectStore()
+  const { panelOpen, activeTaskId, setStatus, setActivity } = useTerminalStore()
+  const { currentProject, loadProjects, setAgentStatus, setTaskWorktreeStatus } = useProjectStore()
+  const { loadSettings } = useSettingsStore()
 
   useEffect(() => {
     init()
     loadProjects()
-  }, [init, loadProjects])
+    loadSettings()
+  }, [init, loadProjects, loadSettings])
 
   // Bridge OMP agent session status from main process into the renderer stores.
+  // Uses scoped listener: stores the handler ref for targeted cleanup.
   useEffect(() => {
-    const handler = (data: { taskId: string; status: 'idle' | 'running' | 'completed' | 'error' }): void => {
-      setStatus(data.taskId, data.status)
-      setAgentStatus(data.taskId, data.status)
-    }
-    window.electronAPI.onAgentStatus(handler)
+    const ipcHandler = window.electronAPI.onAgentStatus(
+      (data: { taskId: string; status: 'idle' | 'running' | 'completed' | 'error' }): void => {
+        setStatus(data.taskId, data.status)
+        setAgentStatus(data.taskId, data.status)
+      },
+    )
     return () => {
-      window.electronAPI.removeAgentStatusListener()
+      window.electronAPI.removeAgentStatusListener(ipcHandler)
     }
   }, [setStatus, setAgentStatus])
 
-  // Bridge OMP JSON-mode output events into the terminal store's message thread.
+  // Bridge granular agent activity updates into the terminal store.
   useEffect(() => {
-    const handler = (data: { taskId: string; promptId: number; raw?: Record<string, unknown>; type?: string; prompt?: string; message?: string; exitCode?: number | null; signal?: string | null }): void => {
-      if (data.raw) {
-        applyEvent(data.taskId, data.promptId, data.raw)
-      } else if (data.type === 'prompt' && data.prompt) {
-        // The prompt event is a meta-event; user message is appended locally.
-      } else if (data.type === 'closed') {
-        finalizeMessage(data.taskId, data.promptId)
-      } else if (data.type === 'error' && data.message) {
-        finalizeMessage(data.taskId, data.promptId, data.message)
-      }
-    }
-    window.electronAPI.onAgentOutput(handler)
+    const ipcHandler = window.electronAPI.onAgentActivity(
+      (data: { taskId: string; activity: AgentActivity }): void => {
+        setActivity(data.taskId, data.activity)
+      },
+    )
     return () => {
-      window.electronAPI.removeAgentOutputListener()
+      window.electronAPI.removeAgentActivityListener(ipcHandler)
     }
-  }, [applyEvent, finalizeMessage])
+  }, [setActivity])
+
+  // Bridge task worktree status updates into the project store.
+  useEffect(() => {
+    const ipcHandler = window.electronAPI.onTaskWorktreeStatus(
+      (data: { taskId: string; status: any; path: string | null; error?: string }): void => {
+        setTaskWorktreeStatus(data.taskId, data.status, data.path, data.error)
+      },
+    )
+    return () => {
+      window.electronAPI.removeTaskWorktreeStatusListener(ipcHandler)
+    }
+  }, [setTaskWorktreeStatus])
 
   return (
-    <>
+    <TooltipProvider>
       <div className="flex h-screen flex-col bg-background">
         <Header />
         <div className="flex flex-1 flex-col overflow-hidden">
@@ -78,7 +90,7 @@ function App(): React.ReactElement {
         </div>
       </div>
       <Toaster />
-    </>
+    </TooltipProvider>
   )
 }
 

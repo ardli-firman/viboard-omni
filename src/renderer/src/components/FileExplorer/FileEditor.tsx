@@ -9,6 +9,57 @@ import { useThemeStore } from '../../stores/themeStore'
 import * as monaco from 'monaco-editor'
 loader.config({ monaco })
 
+// Define custom Matcha themes
+try {
+  monaco.editor.defineTheme('matcha-dark', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: 'comment', foreground: '6f8c74', fontStyle: 'italic' },
+      { token: 'keyword', foreground: '8fc29b', fontStyle: 'bold' },
+      { token: 'string', foreground: 'd2927c' },
+      { token: 'number', foreground: 'cca2ba' },
+      { token: 'type', foreground: '78b2c4' },
+      { token: 'class', foreground: '78b2c4' },
+      { token: 'function', foreground: 'a3be8c' },
+    ],
+    colors: {
+      'editor.background': '#111613',
+      'editor.foreground': '#e6ebe7',
+      'editorLineNumber.foreground': '#46544a',
+      'editorLineNumber.activeForeground': '#8fc29b',
+      'editor.lineHighlightBackground': '#18211c',
+      'editor.selectionBackground': '#2d4034',
+      'editorCursor.foreground': '#8fc29b',
+    },
+  })
+
+  monaco.editor.defineTheme('matcha-light', {
+    base: 'vs',
+    inherit: true,
+    rules: [
+      { token: 'comment', foreground: '7b9682', fontStyle: 'italic' },
+      { token: 'keyword', foreground: '3c6e47', fontStyle: 'bold' },
+      { token: 'string', foreground: 'c45c3d' },
+      { token: 'number', foreground: 'a85d9c' },
+      { token: 'type', foreground: '2b6278' },
+      { token: 'class', foreground: '2b6278' },
+      { token: 'function', foreground: '3c6e47' },
+    ],
+    colors: {
+      'editor.background': '#f5f7f3',
+      'editor.foreground': '#18231a',
+      'editorLineNumber.foreground': '#aab8ad',
+      'editorLineNumber.activeForeground': '#3c6e47',
+      'editor.lineHighlightBackground': '#eef2ec',
+      'editor.selectionBackground': '#d4e0d7',
+      'editorCursor.foreground': '#3c6e47',
+    },
+  })
+} catch (e) {
+  console.error('Failed to define Monaco custom themes:', e)
+}
+
 function getMonacoLanguage(name: string): string {
   const ext = name.split('.').pop()?.toLowerCase() ?? ''
   const map: Record<string, string> = {
@@ -82,7 +133,7 @@ export function FileEditor({ file }: FileEditorProps): ReactElement {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
   const theme = useThemeStore((s) => s.theme)
 
-  const monacoTheme = theme === 'dark' ? 'vs-dark' : 'vs'
+  const monacoTheme = theme === 'dark' ? 'matcha-dark' : 'matcha-light'
 
   const handleMount: OnMount = useCallback((editor) => {
     editorRef.current = editor
@@ -150,8 +201,16 @@ export function FileEditor({ file }: FileEditorProps): ReactElement {
             renderWhitespace: 'selection',
             automaticLayout: true,
             padding: { top: 8 },
-            renderSideBySide: true,
+            renderSideBySide: false,
             ignoreTrimWhitespace: false,
+            // Smart collapse: hide unchanged regions, show only diff hunks
+            // with context lines — focuses attention on what actually changed
+            hideUnchangedRegions: {
+              enabled: true,
+              revealLineCount: 20,
+              minimumLineCount: 3,
+              contextLineCount: 3,
+            },
           }}
         />
       </div>

@@ -1,5 +1,5 @@
-import { app, ipcMain, dialog } from 'electron'
-import { existsSync, readFileSync, writeFileSync, statSync } from 'node:fs'
+import { app, ipcMain, dialog, BrowserWindow } from 'electron'
+import { existsSync, readFileSync, writeFileSync, statSync, watch, FSWatcher } from 'node:fs'
 import { join, basename } from 'node:path'
 import { getDatabase } from '../database/init'
 import { v4 as uuid } from 'uuid'
@@ -94,7 +94,18 @@ export function registerProjectHandlers(): void {
   console.log('[project] Registering IPC handlers')
 
   ipcMain.handle('project:list', (): RegisteredProject[] => {
-    return readStore().sort((a, b) => b.lastOpenedAt - a.lastOpenedAt)
+    return readStore()
+  })
+
+  ipcMain.handle('project:reorder', (_event: unknown, orderedPaths: string[]): boolean => {
+    const projects = readStore()
+    const ordered = orderedPaths
+      .map((pPath) => projects.find((p) => p.path === pPath))
+      .filter((p): p is RegisteredProject => !!p)
+    const missing = projects.filter((p) => !orderedPaths.includes(p.path))
+    const next = [...ordered, ...missing]
+    writeStore(next)
+    return true
   })
 
   ipcMain.handle('project:add', async (): Promise<RegisteredProject | null> => {
@@ -142,4 +153,79 @@ export function registerProjectHandlers(): void {
   ipcMain.handle('project:selectFolder', async (): Promise<string | null> => {
     return pickFolder()
   })
+
+  ipcMain.handle('project:watch', (_event: unknown, path: string): void => {
+    startWatching(path)
+  })
+
+  ipcMain.handle('project:unwatch', (): void => {
+    stopWatching()
+  })
 }
+
+let activeWatcher: FSWatcher | null = null
+
+function startWatching(dirPath: string): void {
+  if (activeWatcher) {
+    try {
+      activeWatcher.close()
+    } catch {}
+    activeWatcher = null
+  }
+
+  try {
+    let debounceTimeout: NodeJS.Timeout | null = null
+    let gitDebounceTimeout: NodeJS.Timeout | null = null
+
+    activeWatcher = watch(dirPath, { recursive: true }, (_eventType, filename) => {
+      if (!filename) return
+
+      const normalized = filename.replace(/\\/g, '/')
+
+      // Performance: ignore node_modules
+      if (normalized.includes('node_modules')) return
+
+      // Git changes → light refresh (git status only)
+      if (normalized.includes('.git')) {
+        const isGitRefOrIndex =
+          normalized.endsWith('.git/index') ||
+          normalized.endsWith('.git/HEAD') ||
+          normalized.includes('.git/refs/')
+
+        if (!isGitRefOrIndex) return
+
+        if (gitDebounceTimeout) clearTimeout(gitDebounceTimeout)
+        gitDebounceTimeout = setTimeout(() => {
+          const win = BrowserWindow.getAllWindows()[0]
+          if (win) win.webContents.send('project:git-changed')
+        }, 300)
+        return
+      }
+
+      // Real file changes → full tree reload
+      if (debounceTimeout) clearTimeout(debounceTimeout)
+      debounceTimeout = setTimeout(() => {
+        const win = BrowserWindow.getAllWindows()[0]
+        if (win) win.webContents.send('project:file-changed')
+      }, 300)
+    })
+
+    console.log('[watcher] Started watching project:', dirPath)
+  } catch (err) {
+    console.error('[watcher] Failed to start watcher:', err)
+  }
+}
+
+function stopWatching(): void {
+  if (activeWatcher) {
+    try {
+      activeWatcher.close()
+      console.log('[watcher] Stopped watching')
+    } catch {}
+    activeWatcher = null
+  }
+}
+
+app.on('before-quit', () => {
+  stopWatching()
+})
