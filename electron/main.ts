@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, Tray, Menu, Notification } from 'electron'
 import { join } from 'node:path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initDatabase } from './database/init'
@@ -14,6 +14,45 @@ import { registerSettingsHandlers } from './ipc/settings'
 import { registerTagHandlers } from './ipc/tags'
 
 let mainWindow: BrowserWindow | null = null
+let tray: Tray | null = null
+let isQuitting = false
+
+function createTray(): void {
+  const iconPath = join(__dirname, '../../build/icon.png')
+  tray = new Tray(iconPath)
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Open ViBoard Omni',
+      click: () => {
+        if (mainWindow) {
+          if (mainWindow.isMinimized()) mainWindow.restore()
+          if (!mainWindow.isVisible()) mainWindow.show()
+          mainWindow.focus()
+        }
+      }
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        isQuitting = true
+        app.quit()
+      }
+    }
+  ])
+
+  tray.setToolTip('ViBoard Omni')
+  tray.setContextMenu(contextMenu)
+
+  tray.on('click', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      if (!mainWindow.isVisible()) mainWindow.show()
+      mainWindow.focus()
+    }
+  })
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -34,6 +73,19 @@ function createWindow(): void {
     mainWindow?.show()
   })
 
+  mainWindow.on('close', (e) => {
+    if (!isQuitting) {
+      e.preventDefault()
+      mainWindow?.hide()
+
+      new Notification({
+        title: 'ViBoard Omni',
+        body: 'Application is running in the background (system tray).',
+        icon: join(__dirname, '../../build/icon.png')
+      }).show()
+    }
+  })
+
   mainWindow.on('closed', () => {
     mainWindow = null
   })
@@ -45,41 +97,58 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.viboard.omni')
+const gotTheLock = app.requestSingleInstanceLock()
 
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
-  })
-  
-  // Initialize database
-  initDatabase()
-
-  registerProjectHandlers()
-  registerFileHandlers()
-  registerGitHandlers()
-  registerSettingsHandlers()
-  registerColumnHandlers()
-  registerTaskHandlers()
-  registerTagHandlers()
-  registerTerminalHandlers()
-  registerThemeHandlers()
-  registerLogHandlers()
-  createWindow()
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow()
+if (!gotTheLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      if (!mainWindow.isVisible()) mainWindow.show()
+      mainWindow.focus()
     }
   })
-})
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
-})
+  app.whenReady().then(() => {
+    electronApp.setAppUserModelId('com.viboard.omni')
 
-app.on('before-quit', () => {
-  shutdownAllSessions()
-})
+    app.on('browser-window-created', (_, window) => {
+      optimizer.watchWindowShortcuts(window)
+    })
+    
+    // Initialize database
+    initDatabase()
+
+    registerProjectHandlers()
+    registerFileHandlers()
+    registerGitHandlers()
+    registerSettingsHandlers()
+    registerColumnHandlers()
+    registerTaskHandlers()
+    registerTagHandlers()
+    registerTerminalHandlers()
+    registerThemeHandlers()
+    registerLogHandlers()
+    
+    createWindow()
+    createTray()
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow()
+      }
+    })
+  })
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      app.quit()
+    }
+  })
+
+  app.on('before-quit', () => {
+    isQuitting = true
+    shutdownAllSessions()
+  })
+}
